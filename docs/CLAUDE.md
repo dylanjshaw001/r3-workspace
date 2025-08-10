@@ -12,12 +12,127 @@ This document provides comprehensive guidance for AI assistants working with the
 1. **Update, Don't Duplicate**: Always update existing documentation instead of creating new files, unless explicitly specified by the user.
 2. **Keep Master Documents Current**: When making changes to any repository, update the master documents in r3-workspace/docs to maintain consistency.
 3. **Single Source of Truth**: This CLAUDE.md file in r3-workspace is the authoritative guide. Team members should have r3-workspace open alongside their project repositories.
-4. **Documentation Locations**:
+4. **Documentation Locations** (ALL in r3-workspace/docs/):
    - Master docs: `/Users/dylanjshaw/r3/r3-workspace/docs/`
    - Technical Architecture: `TECHNICAL_ARCHITECTURE.md`
    - Business Overview: `BUSINESS_OVERVIEW.md`
    - This guide: `CLAUDE.md`
    - Secrets Management: `SECRETS_MANAGEMENT.md`
+   - Backend Secrets: `BACKEND_SECRETS.md` (GitHub Actions secrets)
+   - Backend Security: `BACKEND_SECURITY.md` (security guidelines)
+   - Backend Session Migration: `BACKEND_SESSION_MIGRATION.md`
+   - Backend Security Audit: `BACKEND_SECURITY_AUDIT.md`
+
+## Configuration Management
+
+### Configuration Architecture
+
+The R3 project uses a **two-layer configuration system**:
+1. **Config Files** (in git) - All non-secret configuration
+2. **.env Files** (not in git) - Only secrets for local backend development
+
+### Configuration Files (Non-Secret Values)
+
+**Location and Purpose:**
+- **r3-workspace/config/shared-constants.js** - Master configuration file with all shared constants
+- **r3-backend/config/constants.js** - Backend configuration that imports shared constants
+- **r3-frontend/config/constants.js** - Frontend configuration (duplicates values for browser)
+- **r3-workspace/tests/config/constants.js** - Test configuration that imports shared constants
+
+**What Goes in Config Files:**
+- URLs and domains (shopify store, backend URLs)
+- Theme IDs (staging: 153047662834, production: 152848597234)
+- Ports and timeouts
+- Feature flags
+- API endpoint paths
+- Public keys (Stripe publishable keys)
+
+### Environment Files (.env) - Secrets Only
+
+**IMPORTANT: Most developers don't need .env files!**
+
+**When .env Files Are Needed:**
+
+| Repository | When Needed | Who Needs It |
+|------------|------------|--------------|
+| r3-frontend | **NEVER** | Nobody - frontend uses deployed backend |
+| r3-backend | Only for local backend development | Backend developers only |
+| r3-workspace/tests | Only for integration tests against local backend | Test developers |
+
+### Development Workflows
+
+#### Frontend Development (Most Common)
+```bash
+cd r3-frontend
+shopify theme dev
+# That's it! No .env file needed
+# Frontend automatically connects to deployed backend
+```
+
+#### Backend Development (When Needed)
+```bash
+cd r3-backend
+cp .env.example .env
+# Add secrets from vault (only ~10 values)
+npm run dev
+```
+
+#### What Secrets Are Needed for Backend?
+```bash
+# Only these secrets (from team vault):
+STRIPE_SECRET_KEY         # Payment processing
+STRIPE_WEBHOOK_SECRET     # Webhook verification
+SHOPIFY_ADMIN_ACCESS_TOKEN # Order creation
+SESSION_SECRET            # Session signing
+CSRF_SECRET              # CSRF protection
+KV_REST_API_URL          # Redis connection
+KV_REST_API_TOKEN        # Redis auth
+```
+
+### How Secrets Work in Different Environments
+
+| Environment | How Secrets Are Provided |
+|------------|-------------------------|
+| **Local Frontend Dev** | Not needed - uses deployed backend |
+| **Local Backend Dev** | From .env file (manual setup) |
+| **Vercel Deployment** | Automatically injected by Vercel |
+| **GitHub Actions** | From GitHub Secrets |
+
+### Configuration Examples
+
+```javascript
+// Backend: Import from config
+import { CONFIG, DOMAINS, THEME_IDS } from './config/constants.js';
+
+const shopifyDomain = CONFIG.DOMAINS.SHOPIFY_STORE; // 'sqqpyb-yq.myshopify.com'
+const prodTheme = CONFIG.THEME_IDS.PRODUCTION; // '152848597234'
+
+// Frontend: Use window.R3_CONFIG
+const backendUrl = window.R3_CONFIG.getBackendUrl();
+const stripeKey = window.R3_CONFIG.STRIPE_PUBLIC_KEYS.TEST;
+
+// Tests: Import test config
+import { TEST_CONFIG } from '../config/constants.js';
+const testEmail = TEST_CONFIG.USER.EMAIL;
+```
+
+### When to Update What
+
+| Change Type | Update Location |
+|------------|----------------|
+| New URL/domain | shared-constants.js |
+| Theme ID change | shared-constants.js → THEME_IDS |
+| New API endpoint | shared-constants.js → API_ENDPOINTS |
+| Port/timeout change | shared-constants.js |
+| New secret needed | .env.example + documentation |
+| Feature flag | config files → FEATURES |
+
+### Key Principles
+
+1. **Config files for configuration** - All non-secret values
+2. **.env files for secrets only** - And only for local backend dev
+3. **Frontend needs no .env** - Connects to deployed backend
+4. **Vercel handles production secrets** - No .env in deployment
 
 ## Project Structure
 
@@ -25,13 +140,27 @@ This document provides comprehensive guidance for AI assistants working with the
 ```
 r3/
 ├── r3-workspace/       # Central development hub (THIS IS PRIMARY)
-│   ├── docs/          # All master documentation
-│   ├── tests/         # Comprehensive test suite
-│   └── .github/       # CI/CD workflows
+│   ├── docs/          # ALL master documentation (single source of truth)
+│   ├── tests/         # Comprehensive test suite for all repos
+│   └── .github/       # Workspace CI/CD workflows
 ├── r3-frontend/        # Shopify Liquid theme with custom checkout
-├── r3-backend/         # Node.js/Express payment processing API  
+│   ├── assets/        # Theme assets (JS, CSS, images)
+│   ├── scripts/       # ALL frontend utility scripts (.sh, .js)
+│   └── templates/     # Liquid templates
+├── r3-backend/         # Node.js/Express payment processing API
+│   ├── api/           # API endpoints
+│   ├── scripts/       # ALL backend utility scripts (.sh, .js)
+│   └── utils/         # Backend utilities
 └── r3-access/          # Authentication and access control service
 ```
+
+### Script Organization Rules
+**CRITICAL**: Each repository maintains its own `/scripts` folder:
+- **r3-frontend/scripts/**: All frontend deployment, testing, and utility scripts
+- **r3-backend/scripts/**: All backend utilities, admin tools, and deployment scripts
+- **r3-workspace**: NO scripts folder - only docs and tests
+- **Never scatter scripts** outside the scripts/ folder in each repo
+- **Documentation lives in r3-workspace/docs/** - not in individual repos
 
 ### Active Development Repositories
 - **r3-workspace**: Documentation hub and test suite (https://github.com/dylanjshaw001/r3-workspace)
@@ -73,6 +202,50 @@ Before marking any task complete:
 - No exceptions - fix all failing tests before production deployment
 
 ## Environment Configuration
+
+### Quick Environment Setup (First Time)
+
+**IMPORTANT**: After cloning any repository, you MUST set up environment variables:
+
+1. **Check existing .env files** (should already exist):
+   ```bash
+   # Verify .env files exist
+   ls r3-frontend/.env
+   ls r3-backend/.env  
+   ls r3-workspace/tests/.env
+   ```
+
+2. **If .env files are missing**, copy from examples:
+   ```bash
+   # Frontend
+   cd r3-frontend
+   cp .env.example .env
+   
+   # Backend
+   cd ../r3-backend
+   cp .env.example .env
+   
+   # Tests
+   cd ../r3-workspace/tests
+   cp .env.example .env
+   ```
+
+3. **Get secrets from vault** (see SECRETS_MANAGEMENT.md):
+   - Replace all `<get-from-vault>` values in .env files
+   - Contact team admin for vault access
+   - Never commit real secrets to git
+
+4. **Verify setup works**:
+   ```bash
+   # Test backend can start
+   cd r3-backend && npm run dev
+   
+   # Test frontend can start (in new terminal)
+   cd r3-frontend && shopify theme dev
+   
+   # Test environment variables load
+   node -e "console.log(process.env.SHOPIFY_STORE_DOMAIN)"
+   ```
 
 ### Development
 ```bash
@@ -119,15 +292,46 @@ r3-prod-secrets/         # Production (admin only)
 
 ### Public Keys (Safe to Reference)
 ```javascript
-// Stripe Test Publishable Key
-STRIPE_PUBLIC_KEY_TEST = 'pk_test_51QfuVo2MiCAheYVMWMHg8qhGhCLRnLhOrnZupzJxppag93BnJhMFCCwg1xC2X4aH9vzonCpcpf8z3avoYINOvzaI00u9n0Xx7F'
+// Stripe Test Publishable Keys
+// NOTE: Two keys exist - verify which one is active in Stripe Dashboard
+STRIPE_PUBLIC_KEY_TEST_1 = 'pk_test_51QfuVo2MiCAheYVMWMHg8qhGhCLRnLhOrnZupzJxppag93BnJhMFCCwg1xC2X4aH9vzonCpcpf8z3avoYINOvzaI00u9n0Xx7F' // In .env files
+STRIPE_PUBLIC_KEY_TEST_2 = 'pk_test_51QfuVo2MiCAheYVMBOUaLAoiI6ROiGeETTSMo2n6wz27euMLGlinvxg2dZcWaiH1QV8WcIdAjDxnxc3xV2GIL9GC00uJtwkzZL' // In settings_data.json
 
 // Shopify Store Domain
 SHOPIFY_DOMAIN = 'sqqpyb-yq.myshopify.com'
 
 // Theme IDs
 STAGING_THEME_ID = '153047662834'
+PRODUCTION_THEME_ID = '152848597234'
 ```
+
+### Stripe Key Management
+
+The frontend uses a dynamic Stripe key selection mechanism:
+
+1. **Primary Method**: `window.STRIPE_PUBLIC_KEY_OVERRIDE` 
+   - Set by the theme based on environment settings
+   - Allows dynamic switching between test/live keys
+
+2. **Fallback Method**: Dataset attribute from container
+   - Uses `data-stripe-key` attribute on the checkout container
+   - Applied if no override is set
+
+3. **Key Selection in checkout.js**:
+   ```javascript
+   // Environment-based key selection
+   if (window.STRIPE_PUBLIC_KEY_OVERRIDE) {
+     this.stripePublicKey = window.STRIPE_PUBLIC_KEY_OVERRIDE;
+   } else {
+     // Fallback to production key if no override
+     this.stripePublicKey = container?.dataset.stripeKey;
+   }
+   ```
+
+4. **To Switch Keys**:
+   - Update the theme settings in Shopify admin
+   - Or set the environment variable in .env files
+   - The frontend will automatically use the correct key
 
 ### Secret References (Get from Vault)
 - `STRIPE_SECRET_KEY_TEST`: Vault → r3-dev-secrets → stripe → test-keys
@@ -138,53 +342,31 @@ STAGING_THEME_ID = '153047662834'
 
 ## Payment Processing
 
-### Card Payments
-- Instant processing through Stripe
-- Order created immediately
-- 2.9% + $0.30 transaction fee
+For detailed payment information, see:
+- **Business perspective**: BUSINESS_OVERVIEW.md → Payment Processing section
+- **Technical implementation**: TECHNICAL_ARCHITECTURE.md → Payment Endpoints section
 
-### ACH Payments
-Two modes available:
-1. **Financial Connections** (Instant verification)
-   - Customer logs into bank
-   - Immediate verification
-   - Order created right away
-
-2. **Manual Entry**
-   - Customer enters routing/account numbers
-   - Microdeposit verification (1-2 days)
-   - Order created after verification
-
-### Order Creation Rules
-- **Production + Live Payment** → Real order
-- **Staging/Dev + Any Payment** → Draft order
-- **Exactly 1 order per payment** (idempotency enforced)
+### Quick Reference
+- **Card payments**: Instant, 2.9% + $0.30 fee
+- **ACH payments**: 1-3 days, lower fees
+- **Order creation**: Production + Live = Real order, else Draft order
 
 ## Shipping Calculation
 
-### ONEbox Products
-Server-side calculation only:
-- **Units**: $5.00 each
-- **Case (10 units)**: $25.00
-- Example: 13 units = 1 case ($25) + 3 units ($15) = $40
+See BUSINESS_OVERVIEW.md → Shipping & Fulfillment section for details.
 
-### Standard Products
-- FREE shipping on all non-ONEbox items
-- No minimum order requirement
+**Quick Reference**:
+- ONEbox: $5/unit or $25/case (10 units)
+- Standard products: FREE shipping
 
 ## Session Management
 
-### Checkout Sessions
-- Created on checkout page load
-- 30-minute TTL in Redis/Vercel KV
-- Token stored in localStorage and cart.attributes
-- Required for all API calls: `Authorization: Bearer {token}`
+For full session architecture, see TECHNICAL_ARCHITECTURE.md → Session Architecture section.
 
-### Session Recovery
-If session expires:
-1. Call `ensureValidSession()` 
-2. Creates new session if needed
-3. Preserves cart data
+**Quick Reference**:
+- Sessions expire after 30 minutes
+- Token required for all API calls
+- Auto-recovery with `ensureValidSession()`
 
 ## Testing Strategy
 
@@ -248,6 +430,26 @@ npm test                    # Must show 100% pass rate
 - **GitHub Actions failing**: Check billing is active ($30/month allocated)
 - **Theme not updating**: Clear browser cache, check preview_theme_id
 - **Backend not deploying**: Verify Vercel scope is set to 'r3'
+
+### Environment Variable Issues
+- **"Cannot connect to backend"**: Check R3_API_URL in frontend/.env
+- **"Missing environment variable"**: Verify .env files exist and contain required values
+- **"Invalid Shopify domain"**: Check SHOPIFY_STORE_DOMAIN is set correctly
+- **"Stripe key not found"**: Replace `<get-from-vault>` with actual keys from vault
+- **"Session creation failed"**: Verify SESSION_SECRET and CSRF_SECRET are set
+- **Tests failing**: Check r3-workspace/tests/.env has correct test configuration
+
+#### Environment Variable Debugging:
+```bash
+# Check if .env files are loaded
+node -e "console.log('SHOPIFY_STORE_DOMAIN:', process.env.SHOPIFY_STORE_DOMAIN)"
+
+# Verify backend can read environment
+cd r3-backend && node -e "console.log(require('dotenv').config())"
+
+# Test specific variable loading
+grep "SHOPIFY_STORE_DOMAIN" r3-frontend/.env
+```
 
 ## Critical Files & Functions
 
@@ -529,6 +731,47 @@ git push origin prod  # Only if all tests pass
 - Always validate user input
 - **Write tests for new code**
 - **Update tests when changing behavior**
+- **NEVER hardcode values** - use environment variables and configuration files
+
+### No-Hardcoding Guidelines
+
+**CRITICAL:** All hardcoded values create brittleness and deployment issues. Always use configuration.
+
+#### ❌ NEVER hardcode these values:
+- **URLs and domains**: `sqqpyb-yq.myshopify.com`, `rthree.io`
+- **Theme IDs**: `153047662834`, `152848597234`
+- **Ports**: `3000`, `9292`
+- **Branch names**: `stage`, `dev`, `prod`
+- **API endpoints**: `localhost:3000`, `https://r3-backend.vercel.app`
+- **Store IDs, webhook URLs, deployment URLs**
+
+#### ✅ Instead use environment variables:
+```javascript
+// ❌ Bad
+const url = 'https://sqqpyb-yq.myshopify.com';
+const themeId = '153047662834';
+
+// ✅ Good  
+const url = process.env.SHOPIFY_STORE_DOMAIN || 'sqqpyb-yq.myshopify.com';
+const themeId = process.env.SHOPIFY_THEME_ID_STAGING || '153047662834';
+```
+
+#### Configuration Sources:
+1. **Environment Variables**: Use `.env` files with fallbacks
+2. **Shared Constants**: Use `/docs/config/shared-constants.js`
+3. **Configuration Files**: `config/urls.js`, `config/domains.js`
+
+#### Before Committing:
+- Search codebase for hardcoded values: `grep -r "sqqpyb-yq" .`
+- Verify all URLs use environment variables
+- Check deployment scripts use configurable values
+- Test with different environment configurations
+
+#### Common Hardcoding Violations:
+- Deployment scripts with hardcoded store domains
+- Test files with hardcoded API URLs
+- Configuration files with hardcoded theme IDs
+- GitHub Actions with hardcoded branch-specific values
 
 ### Git Workflow
 ```bash
@@ -548,7 +791,7 @@ git merge feature/your-feature
 git push origin stage
 
 # 5. Deploy theme if needed
-shopify theme push --theme 153047662834
+shopify theme push --theme "${SHOPIFY_THEME_ID_STAGING:-153047662834}"
 ```
 
 ### Documentation
@@ -560,28 +803,16 @@ shopify theme push --theme 153047662834
 - Include examples in code comments
 - **Master documents in r3-workspace/docs/** are the single source of truth
 
-## Security Checklist
+## Security Quick Reminders
 
-### API Security
-- [ ] All endpoints require authentication
-- [ ] Session tokens validated
-- [ ] Input sanitization implemented
-- [ ] Rate limiting enabled
-- [ ] CORS properly configured
+For comprehensive security architecture, see TECHNICAL_ARCHITECTURE.md → Security Architecture section.
 
-### Payment Security
-- [ ] Webhook signatures verified
-- [ ] No card data stored
-- [ ] Stripe tokens used exclusively
-- [ ] Idempotency keys implemented
-- [ ] Environment detection accurate
-
-### Frontend Security
-- [ ] No API keys in client code
-- [ ] Shipping calculated server-side
-- [ ] Form validation on submit
-- [ ] XSS prevention measures
-- [ ] CSRF tokens implemented
+**Key Security Rules**:
+- Never commit secrets to git
+- Always validate input server-side
+- Use environment variables for all sensitive data
+- Verify webhook signatures
+- Keep sessions server-side only
 
 ## Monitoring & Debugging
 
@@ -610,10 +841,13 @@ vercel logs --follow
 
 ## Scripts Documentation
 
-### Script Organization
-All utility scripts are now organized in their respective repository's `/scripts` folder:
-- **r3-frontend/scripts/** - Theme deployment, testing, and sync utilities
-- **r3-backend/scripts/** - Backend utilities, rate limiting, and Vercel management
+### Script Organization Rules
+**IMPORTANT**: Each repository maintains ALL its scripts in its own `/scripts` folder:
+- **r3-frontend/scripts/** - Theme deployment, testing, sync utilities (9 scripts)
+- **r3-backend/scripts/** - Backend utilities, rate limiting, Vercel management (4 scripts)
+- **r3-workspace** - NO scripts (only docs and tests)
+
+**Never place scripts outside the `/scripts` folder** - this keeps each repo organized and self-contained.
 
 ### Frontend Scripts (r3-frontend/scripts/)
 
@@ -761,6 +995,7 @@ ngrok http 3000
 8. **Keep sessions under 30 minutes** for security
 9. **Use draft orders for testing** in dev/stage
 10. **Follow deployment order** (Git → Vercel → Shopify)
+11. **Check rate limits before production** - Current limits are HIGH for testing (1000 req/15min). Must reduce per TODOs in `r3-backend/middleware/rateLimiter.js`
 
 ## Contact & Support
 

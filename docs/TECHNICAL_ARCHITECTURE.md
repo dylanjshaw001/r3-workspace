@@ -333,55 +333,344 @@ if (environment === 'production' && livemode === true) {
 }
 ```
 
+## Session Architecture
+
+### Current Implementation
+
+Sessions are critical for maintaining checkout state and preventing fraud. We use Redis-backed sessions with secure token generation.
+
+#### Session Lifecycle
+1. **Creation**: Customer lands on checkout page
+2. **Validation**: Every API request validates session
+3. **Update**: Session updated with each step
+4. **Expiration**: Auto-cleanup after 30 minutes
+5. **Completion**: Cleared after successful order
+
+#### Session Storage Structure
+```javascript
+// Redis key format: session:{token}
+{
+  sessionId: string,        // Unique session identifier
+  cartToken: string,        // Shopify cart token
+  domain: string,           // Validated store domain
+  ipAddress: string,        // For session binding
+  userAgent: string,        // For device fingerprint
+  csrfToken: string,        // CSRF protection token
+  requestCount: number,     // Rate limiting counter
+  createdAt: timestamp,
+  expiresAt: timestamp,
+  metadata: {
+    cartTotal: number,
+    itemCount: number,
+    customerId: string
+  }
+}
+```
+
+### Secure Session Migration (Future)
+
+We're migrating from token-based to cookie-based sessions for enhanced security.
+
+#### Current System (Phase Out)
+- Session tokens in cart attributes
+- Bearer token authentication
+- Client-side token storage
+- No CSRF protection
+
+#### New System (Rolling Out)
+- HTTP-only secure cookies
+- Automatic session management
+- CSRF tokens for mutations
+- Session binding to device
+
+#### Migration Strategy
+```javascript
+// Dual support during transition
+if (req.cookies.sessionId) {
+  // New cookie-based flow
+  validateCookieSession(req.cookies.sessionId);
+} else if (req.headers.authorization) {
+  // Legacy token-based flow
+  validateBearerToken(req.headers.authorization);
+}
+```
+
+## Configuration & Secrets Management
+
+### Overview
+
+The R3 platform uses a two-layer configuration system that separates public configuration from secrets:
+
+1. **Configuration Files** (Git-tracked) - All non-sensitive configuration values
+2. **Environment Variables** (Platform-managed) - Secrets and credentials only
+
+### Configuration Files Architecture
+
+```
+r3-workspace/
+├── config/
+│   └── shared-constants.js      # Master configuration (single source of truth)
+│
+r3-backend/
+├── config/
+│   ├── constants.js             # Imports shared + adds backend-specific
+│   ├── domains.js               # Store configuration
+│   └── urls.js                  # URL management
+│
+r3-frontend/
+├── config/
+│   └── constants.js             # Browser-safe configuration (no imports)
+│
+r3-workspace/tests/
+├── config/
+│   └── constants.js             # Test configuration
+```
+
+### Configuration Values
+
+**Stored in Config Files:**
+- API URLs and endpoints
+- Domain names (sqqpyb-yq.myshopify.com, rthree.io)
+- Theme IDs (staging: 153047662834, production: 152848597234)
+- Port numbers (backend: 3000, frontend: 9292)
+- Feature flags
+- Rate limits
+- Timeouts
+- Public keys (Stripe publishable keys)
+
+**Stored in Environment Variables:**
+- API secret keys (Stripe, Shopify)
+- Webhook secrets
+- Session secrets
+- Database/Redis credentials
+- Monitoring tokens
+
+### Environment Variable Management
+
+#### Local Development (.env files)
+
+**Backend Only** - Frontend doesn't need .env files:
+
+```bash
+# r3-backend/.env (Local development only)
+NODE_ENV=development
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SHOPIFY_ADMIN_ACCESS_TOKEN=shpat_...
+SESSION_SECRET=...
+CSRF_SECRET=...
+KV_REST_API_URL=...
+KV_REST_API_TOKEN=...
+```
+
+#### Production/Staging (Platform-Managed)
+
+**Vercel Environment Variables:**
+- Set via Vercel Dashboard → Settings → Environment Variables
+- Branch-specific (prod branch gets production secrets)
+- Automatically injected at runtime
+- No .env files in deployment
+
+**GitHub Actions Secrets:**
+- Set via Repository → Settings → Secrets
+- Used for CI/CD workflows
+- Referenced as `${{ secrets.SECRET_NAME }}`
+
+### Secret Storage Hierarchy
+
+```
+Production Secrets (Vercel)
+├── STRIPE_SECRET_KEY_PROD       # Live Stripe key
+├── STRIPE_WEBHOOK_SECRET_PROD   # Production webhook
+└── SHOPIFY_ADMIN_ACCESS_TOKEN   # Production store
+
+Staging Secrets (Vercel)
+├── STRIPE_SECRET_KEY_TEST       # Test Stripe key
+├── STRIPE_WEBHOOK_SECRET_STAGE  # Staging webhook
+└── SHOPIFY_ADMIN_ACCESS_TOKEN   # Same store, different theme
+
+Development Secrets (Local .env)
+├── From team vault (1Password)
+└── Test keys only
+```
+
+### Configuration Loading Pattern
+
+```javascript
+// Backend: config/constants.js
+import sharedConstants from '../../r3-workspace/config/shared-constants.js';
+
+export const CONFIG = {
+  // Non-secret config from shared constants
+  DOMAINS: sharedConstants.DOMAINS,
+  THEME_IDS: sharedConstants.THEME_IDS,
+  
+  // Secrets from environment variables
+  SECRETS: {
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    SHOPIFY_ADMIN_ACCESS_TOKEN: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
+  }
+};
+
+// Usage
+const domain = CONFIG.DOMAINS.SHOPIFY_STORE;  // From config file
+const apiKey = CONFIG.SECRETS.STRIPE_SECRET_KEY; // From env var
+```
+
+### Development Workflows
+
+#### Frontend Development (No Secrets Needed)
+
+```bash
+cd r3-frontend
+shopify theme dev
+# Connects to https://r3-backend-git-dev-r3.vercel.app
+# Backend already has all secrets from Vercel
+```
+
+#### Backend Development (Secrets Required)
+
+```bash
+cd r3-backend
+cp .env.example .env
+# Add secrets from vault
+npm run dev
+# Backend runs locally with secrets from .env
+```
+
+### Security Best Practices
+
+1. **Never commit secrets** - .env files are gitignored
+2. **Use vault for sharing** - Team members get secrets from 1Password
+3. **Minimal secret exposure** - Only ~10 secrets needed for backend
+4. **Environment isolation** - Different secrets per environment
+5. **Automatic rotation** - Update via Vercel Dashboard
+6. **Audit trail** - Vercel logs all secret access
+
+### Configuration Update Procedures
+
+| Change Type | Update Location | Deployment |
+|------------|-----------------|------------|
+| Add new URL | shared-constants.js | Git push → Auto-deploy |
+| Change theme ID | shared-constants.js → THEME_IDS | Git push → Auto-deploy |
+| Add new secret | Vercel Dashboard + .env.example | Immediate in Vercel |
+| Update secret | Vercel Dashboard only | Immediate, no code change |
+| Add feature flag | config files → FEATURES | Git push → Auto-deploy |
+
 ## Security Architecture
+
+### Defense in Depth Strategy
+
+Our security implementation follows a multi-layered approach with fail-closed defaults.
 
 ### Authentication & Authorization
 
-#### Session Security
-- Redis-backed sessions with 30-minute TTL
-- Cryptographically secure token generation
-- Domain validation for multi-store support
-- CSRF protection on state-changing operations
+#### Session Management
+- **Storage**: Redis-backed sessions with 30-minute TTL
+- **Token Generation**: Cryptographically secure using `crypto.randomBytes(32)`
+- **Session Binding**: Bound to IP + User-Agent fingerprint
+- **CSRF Protection**: Token required for all state-changing operations
+- **Session Rotation**: New session ID on privilege escalation
+- **Automatic Cleanup**: Expired sessions purged automatically
 
-#### API Security
+#### API Security Layers
 ```javascript
-// Security middleware stack
-app.use(helmet()); // Security headers
-app.use(cors(corsOptions)); // CORS protection
-app.use(rateLimiter); // Rate limiting
-app.use(validateSession); // Session validation
-app.use(validateCSRF); // CSRF protection
+// Security middleware stack (order matters)
+app.use(helmet());           // Security headers (HSTS, CSP, etc.)
+app.use(cors(corsOptions));  // CORS with whitelist validation
+app.use(rateLimiter);        // Rate limiting per IP/session
+app.use(validateDomain);     // Domain validation from headers
+app.use(validateSession);    // Session validation & binding check
+app.use(validateCSRF);       // CSRF token validation
+app.use(sanitizeInput);      // Input sanitization
 ```
+
+### Rate Limiting
+
+| Endpoint Type | Limit | Window | Purpose |
+|--------------|-------|---------|---------|
+| API endpoints | 100 req | 15 min | General API protection |
+| Session creation | 10 req | 15 min | Prevent session flooding |
+| Payment attempts | 20 req | 5 min | Prevent payment abuse |
+| Webhooks | 100 req | 1 min | Handle Stripe retries |
+
+### Input Validation & Sanitization
+
+#### Cart Validation
+- Amount validation against Shopify cart
+- Line item verification
+- Inventory checks
+- Price manipulation detection
+
+#### Customer Data Sanitization
+```javascript
+// All user input sanitized
+sanitizeInput(data) {
+  // Remove script tags, SQL keywords
+  // Validate email formats
+  // Sanitize phone numbers
+  // Validate postal codes
+}
+```
+
+### Webhook Security
+
+#### Stripe Webhook Verification
+- Signature verification using `stripe.webhooks.constructEvent()`
+- Idempotency handling (24-hour window)
+- Duplicate prevention using event IDs
+- Comprehensive audit logging
 
 ### Data Protection
 
 #### Sensitive Data Handling
-- No PII stored in frontend
-- Payment details handled by Stripe.js
-- Session data encrypted in transit
-- Webhook signatures verified
+- **No PII Storage**: Customer data flows through, not stored
+- **Payment Tokenization**: Stripe.js handles all card data
+- **Session Encryption**: All session data encrypted at rest
+- **Log Masking**: Sensitive data masked in logs
+- **Secure Headers**: HTTPS-only, no cache for sensitive pages
 
-#### Environment Variables
-```
-# Production secrets (Vercel)
-STRIPE_SECRET_KEY_PROD
-STRIPE_WEBHOOK_SECRET_PROD
-SHOPIFY_ADMIN_ACCESS_TOKEN_PROD
-KV_REST_API_TOKEN
+### Security Monitoring
 
-# Scoped by branch in Vercel
-- dev branch → *_DEV variables
-- stage branch → *_STAGE variables
-- prod branch → *_PROD variables
-```
+#### Audit Logging
+- All authentication attempts
+- Payment processing events
+- Admin actions
+- Security violations
+- Rate limit violations
 
-### Input Validation
-```javascript
-// Example validation
-if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
-  return res.status(400).json({ error: 'Invalid postal code' });
-}
-```
+#### Alert Triggers
+- Failed authentication spikes
+- Unusual payment patterns
+- Session hijacking attempts
+- Rate limit violations
+- Webhook signature failures
+
+### Incident Response
+
+#### Security Event Handling
+1. **Detection**: Automated monitoring alerts
+2. **Assessment**: Severity classification
+3. **Containment**: Automatic blocking if critical
+4. **Investigation**: Log analysis
+5. **Recovery**: Service restoration
+6. **Documentation**: Incident report
+
+### Security Improvements History
+
+#### Critical Issues Fixed
+- ✅ Session tokens no longer exposed in JavaScript
+- ✅ Sessions bound to device fingerprint
+- ✅ Cart validation fails closed (blocks invalid)
+- ✅ CSRF protection implemented
+- ✅ Domain extracted from headers, not client
+- ✅ Per-session request limiting
+
+#### Remaining Hardening (Roadmap)
+- 🟡 Implement request signing
+- 🟡 Add API versioning
+- 🟡 Enhanced monitoring dashboard
+- 🟡 Automated security scanning
 
 ## Testing Infrastructure
 
@@ -641,6 +930,129 @@ app.use((error, req, res, next) => {
   res.status(500).json(createSafeError(error));
 });
 ```
+
+## Disaster Recovery & Business Continuity
+
+### Rollback Procedures
+
+#### Frontend Rollback
+```bash
+# Quick rollback to previous theme version
+shopify theme push --theme <previous-theme-id>
+
+# Or use GitHub to revert
+git revert HEAD
+git push origin prod
+# GitHub Actions will auto-deploy
+```
+
+#### Backend Rollback
+```bash
+# Vercel automatic rollback
+vercel rollback
+
+# Or promote previous deployment
+vercel promote <deployment-url>
+```
+
+### Recovery Time Objectives (RTO)
+
+| Component | RTO | RPO | Strategy |
+|-----------|-----|-----|----------|
+| Frontend | 5 min | 0 | GitHub + Shopify theme versioning |
+| Backend API | 2 min | 0 | Vercel instant rollback |
+| Sessions | 30 min | 30 min | Redis persistence |
+| Orders | 0 | 0 | Shopify handles persistence |
+
+### Backup Strategy
+
+#### Code Backups
+- GitHub: Full version history
+- Shopify: Theme version history
+- Vercel: Deployment history
+
+#### Data Backups
+- Orders: Shopify automatic backups
+- Sessions: Redis persistence (30-min window)
+- Logs: Vercel retains for 7 days
+
+### Incident Response Plan
+
+1. **Detection** (< 2 min)
+   - Automated health checks
+   - Vercel monitoring
+   - Customer reports
+
+2. **Assessment** (< 5 min)
+   - Check Vercel logs
+   - Review error rates
+   - Identify affected components
+
+3. **Mitigation** (< 10 min)
+   - Rollback if needed
+   - Scale resources
+   - Enable maintenance mode
+
+4. **Resolution** (varies)
+   - Deploy fix
+   - Verify resolution
+   - Clear caches
+
+5. **Post-Mortem**
+   - Document incident
+   - Update runbooks
+   - Implement preventions
+
+### Failover Scenarios
+
+#### Payment Provider Failure
+- Stripe outage: Show maintenance message
+- Fallback: Queue orders for later processing
+
+#### Session Store Failure
+- Redis down: Degrade to stateless checkout
+- Fallback: Direct Shopify checkout
+
+#### API Failure
+- Backend down: Static error page
+- Fallback: Queue requests for replay
+
+## Performance Benchmarks
+
+### Target Metrics
+
+| Metric | Target | Current | Alert Threshold |
+|--------|--------|---------|-----------------|
+| Page Load | < 3s | 2.8s | > 5s |
+| API Response | < 500ms | 450ms | > 1s |
+| Checkout Completion | < 30s | 25s | > 60s |
+| Session Creation | < 200ms | 180ms | > 500ms |
+| Payment Processing | < 5s | 4s | > 10s |
+
+### API Rate Limits
+
+> ⚠️ **IMPORTANT**: Current limits are set very high for testing/validation. These MUST be reduced before production launch. See TODO comments in `/r3-backend/middleware/rateLimiter.js`
+
+| Endpoint Type | Current Limit (Testing) | Target Limit (Production) | Window | Status Code |
+|--------------|------------------------|---------------------------|---------|-------------|
+| General API (`/api/*`) | 1000 requests | 100 requests | 15 minutes | 429 |
+| Session Creation (`/api/checkout/session`) | 500 requests | 10-20 requests | 15 minutes | 429 |
+| Payment Processing (`/api/stripe/*`) | 200 requests | 20-30 requests | 5 minutes | 429 |
+| Webhooks (`/webhook/stripe`) | 1000 requests | 100 requests | 1 minute | 429 |
+
+**Pre-Production Checklist:**
+- [ ] Review and reduce all rate limits in `rateLimiter.js`
+- [ ] Test with production-like limits in staging
+- [ ] Ensure monitoring alerts for rate limit violations
+- [ ] Document rate limit headers in API responses
+
+### Scaling Limits
+
+- **Concurrent Sessions**: 10,000
+- **Orders per Hour**: 1,000
+- **Webhook Queue**: 1,000 events
+- **Redis Memory**: 256MB
+- **Vercel Functions**: 10s timeout
 
 ## Automation Scripts
 

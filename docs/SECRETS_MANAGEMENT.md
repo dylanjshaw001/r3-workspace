@@ -101,10 +101,37 @@ Contains:
 
 ### CI/CD Secrets
 
-GitHub Actions secrets are managed separately:
-1. Go to repository Settings → Secrets
-2. Add secrets with same names as vault
-3. Reference in workflows: `${{ secrets.SECRET_NAME }}`
+#### GitHub Actions Required Secrets
+
+**Vercel Deployment:**
+- `VERCEL_ORG_ID` - Your Vercel organization ID
+- `VERCEL_PROJECT_ID` - Your Vercel project ID  
+- `VERCEL_TOKEN` - Your Vercel API token
+
+**Test Environment:**
+- `TEST_KV_REST_API_URL` - Test Redis/Vercel KV URL
+- `TEST_KV_REST_API_TOKEN` - Test Redis/Vercel KV token
+- `STRIPE_TEST_SECRET_KEY` - Stripe test secret key
+- `STRIPE_TEST_WEBHOOK_SECRET` - Stripe test webhook secret
+- `SHOPIFY_TEST_ACCESS_TOKEN` - Shopify test access token
+- `SHOPIFY_CLI_THEME_TOKEN` - Shopify theme deployment token
+
+**Optional:**
+- `CODECOV_TOKEN` - For code coverage reporting
+
+#### How to Configure GitHub Secrets
+
+1. Go to repository Settings → Secrets and variables → Actions
+2. Click "New repository secret"
+3. Add each secret with its name and value
+4. Reference in workflows: `${{ secrets.SECRET_NAME }}`
+
+#### Obtaining Vercel IDs
+
+1. Install Vercel CLI: `npm i -g vercel`
+2. Run `vercel link` in project directory
+3. Check `.vercel/project.json` for org and project IDs
+4. Generate token at: https://vercel.com/account/tokens
 
 ## Secret Rotation
 
