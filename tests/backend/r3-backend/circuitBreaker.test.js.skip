@@ -1,0 +1,163 @@
+// Tests for circuit breaker implementation
+import { describe, expect, Mock } from './testFramework.js';
+import { CircuitBreaker } from '../utils/circuitBreaker.js';
+
+export const circuitBreakerTests = describe('CircuitBreaker', function () {
+  let breaker;
+
+  this.beforeEachTest(() => {
+    breaker = new CircuitBreaker({
+      name: 'test',
+      failureThreshold: 3,
+      successThreshold: 2,
+      timeout: 100,
+      resetTimeout: 200
+    });
+  });
+
+  this.describe('Normal operation', function () {
+    this.it('should execute successful requests', async () => {
+      const result = await breaker.call(async () => 'success');
+      expect.toBe(result, 'success');
+      expect.toBe(breaker.state, 'CLOSED');
+    });
+
+    this.it('should handle multiple successful requests', async () => {
+      for (let i = 0; i < 5; i++) {
+        const result = await breaker.call(async () => i);
+        expect.toBe(result, i);
+      }
+      expect.toBe(breaker.state, 'CLOSED');
+      expect.toBe(breaker.failures, 0);
+    });
+  });
+
+  this.describe('Failure handling', function () {
+    this.it('should count failures', async () => {
+      try {
+        await breaker.call(async () => {
+          throw new Error('Test error');
+        });
+      } catch (e) {
+        // Expected
+      }
+
+      expect.toBe(breaker.failures, 1);
+      expect.toBe(breaker.state, 'CLOSED');
+    });
+
+    this.it('should open after threshold failures', async () => {
+      // Fail 3 times to open the breaker
+      for (let i = 0; i < 3; i++) {
+        try {
+          await breaker.call(async () => {
+            throw new Error('Test error');
+          });
+        } catch (e) {
+          // Expected
+        }
+      }
+
+      expect.toBe(breaker.state, 'OPEN');
+      expect.toBe(breaker.failures, 3);
+    });
+
+    this.it('should reject requests when open', async () => {
+      // Open the breaker
+      breaker.state = 'OPEN';
+      breaker.nextAttempt = Date.now() + 10000;
+
+      await expect.toReject(
+        breaker.call(async () => 'should not execute'),
+        /Circuit breaker is OPEN/
+      );
+    });
+
+    this.it('should use fallback when provided', async () => {
+      // Open the breaker
+      breaker.state = 'OPEN';
+      breaker.nextAttempt = Date.now() + 10000;
+
+      const result = await breaker.call(
+        async () => 'should not execute',
+        async () => 'fallback result'
+      );
+
+      expect.toBe(result, 'fallback result');
+    });
+  });
+
+  this.describe('Half-open state', function () {
+    this.it('should transition to half-open after timeout', async () => {
+      // Open the breaker
+      breaker.state = 'OPEN';
+      breaker.nextAttempt = Date.now() - 1; // Past time
+
+      await breaker.call(async () => 'success');
+
+      expect.toBe(breaker.state, 'HALF_OPEN');
+    });
+
+    this.it('should close after success threshold in half-open', async () => {
+      breaker.state = 'HALF_OPEN';
+
+      // Need 2 successes to close
+      await breaker.call(async () => 'success1');
+      expect.toBe(breaker.state, 'HALF_OPEN');
+
+      await breaker.call(async () => 'success2');
+      expect.toBe(breaker.state, 'CLOSED');
+    });
+
+    this.it('should reopen on failure in half-open', async () => {
+      breaker.state = 'HALF_OPEN';
+
+      try {
+        await breaker.call(async () => {
+          throw new Error('Test error');
+        });
+      } catch (e) {
+        // Expected
+      }
+
+      expect.toBe(breaker.state, 'OPEN');
+    });
+  });
+
+  this.describe('Timeout handling', function () {
+    this.it('should timeout long-running requests', async () => {
+      await expect.toReject(
+        breaker.call(async () => {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          return 'should timeout';
+        }),
+        /Circuit breaker timeout/
+      );
+
+      expect.toBe(breaker.failures, 1);
+    });
+  });
+
+  this.describe('State management', function () {
+    this.it('should return current state', () => {
+      const state = breaker.getState();
+
+      expect.toHaveProperty(state, 'name', 'test');
+      expect.toHaveProperty(state, 'state', 'CLOSED');
+      expect.toHaveProperty(state, 'failures', 0);
+      expect.toHaveProperty(state, 'successes', 0);
+    });
+
+    this.it('should reset state', () => {
+      breaker.state = 'OPEN';
+      breaker.failures = 5;
+      breaker.successes = 3;
+
+      breaker.reset();
+
+      expect.toBe(breaker.state, 'CLOSED');
+      expect.toBe(breaker.failures, 0);
+      expect.toBe(breaker.successes, 0);
+    });
+  });
+});

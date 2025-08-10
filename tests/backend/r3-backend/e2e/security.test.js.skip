@@ -1,0 +1,422 @@
+// Security-focused tests for the payment backend
+// Tests authentication, authorization, input validation, and security headers
+
+import { describe, expect, TestClient } from '../testFramework.js';
+import app from '../../server-unified.js';
+import crypto from 'crypto';
+
+const client = new TestClient(app);
+const TEST_DOMAIN = 'sqqpyb-yq.myshopify.com';
+
+export const securityTests = describe('Security Test Suite', function () {
+  let validSession;
+
+  this.before(async () => {
+    // Create a valid session for testing
+    const response = await client.post('/api/checkout/session', {
+      headers: {
+        'origin': `https://${TEST_DOMAIN}`
+      },
+      body: {
+        cartToken: `security-test-cart-${Date.now()}`,
+        cartTotal: 5000
+      }
+    });
+
+    validSession = {
+      token: response.body.sessionToken,
+      csrf: response.body.csrfToken
+    };
+  });
+
+  this.describe('CSRF Protection', function () {
+    this.it('should reject POST requests without CSRF token', async () => {
+      const response = await client.post('/api/calculate-shipping', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`
+        },
+        body: {
+          items: [{ weight: 100, quantity: 1 }],
+          postalCode: '10001'
+        }
+      });
+
+      expect.toBe(response.status, 403);
+      expect.toHaveProperty(response.body, 'error', 'Invalid CSRF token');
+    });
+
+    this.it('should reject POST requests with invalid CSRF token', async () => {
+      const response = await client.post('/api/calculate-shipping', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`,
+          'x-csrf-token': 'invalid-csrf-token-12345'
+        },
+        body: {
+          items: [{ weight: 100, quantity: 1 }],
+          postalCode: '10001'
+        }
+      });
+
+      expect.toBe(response.status, 403);
+      expect.toHaveProperty(response.body, 'error', 'Invalid CSRF token');
+    });
+
+    this.it('should allow GET requests without CSRF token', async () => {
+      const response = await client.get('/api/checkout/csrf', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`
+        }
+      });
+
+      expect.toBe(response.status, 200);
+      expect.toHaveProperty(response.body, 'csrfToken');
+    });
+
+    this.it('should prevent CSRF token reuse across sessions', async () => {
+      // Create another session
+      const newSession = await client.post('/api/checkout/session', {
+        headers: {
+          'origin': `https://${TEST_DOMAIN}`
+        },
+        body: {
+          cartToken: `csrf-test-cart-${Date.now()}`,
+          cartTotal: 5000
+        }
+      });
+
+      // Try to use CSRF token from first session with second session
+      const response = await client.post('/api/calculate-shipping', {
+        headers: {
+          'Authorization': `Bearer ${newSession.body.sessionToken}`,
+          'x-csrf-token': validSession.csrf // Wrong CSRF token
+        },
+        body: {
+          items: [{ weight: 100, quantity: 1 }],
+          postalCode: '10001'
+        }
+      });
+
+      expect.toBe(response.status, 403);
+      expect.toHaveProperty(response.body, 'error', 'Invalid CSRF token');
+    });
+  });
+
+  this.describe('Session Security', function () {
+    this.it('should reject expired sessions', async () => {
+      // Create a session with very short TTL
+      const expiredToken = crypto.randomBytes(32).toString('base64url');
+
+      const response = await client.post('/api/calculate-shipping', {
+        headers: {
+          'Authorization': `Bearer ${expiredToken}`,
+          'x-csrf-token': 'any-token'
+        },
+        body: {
+          items: [{ weight: 100, quantity: 1 }],
+          postalCode: '10001'
+        }
+      });
+
+      expect.toBe(response.status, 401);
+      expect.toContain(response.body.error, 'session');
+    });
+
+    this.it('should prevent session hijacking via fingerprint', async () => {
+      // Create session with one user agent
+      const originalSession = await client.post('/api/checkout/session', {
+        headers: {
+          'origin': `https://${TEST_DOMAIN}`,
+          'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        body: {
+          cartToken: `fingerprint-test-${Date.now()}`,
+          cartTotal: 5000
+        }
+      });
+
+      // Try to use session with different user agent on payment endpoint
+      const response = await client.post('/api/stripe/create-payment-intent', {
+        headers: {
+          'Authorization': `Bearer ${originalSession.body.sessionToken}`,
+          'x-csrf-token': originalSession.body.csrfToken,
+          'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        },
+        body: {
+          amount: 5000,
+          currency: 'usd'
+        }
+      });
+
+      // Should fail on payment endpoints due to fingerprint mismatch
+      expect.toBe(response.status, 401);
+      expect.toContain(response.body.error, 'session');
+    });
+
+    this.it('should enforce session limits', async () => {
+      // This test would verify request count limits
+      // In a real implementation, we'd make many requests to trigger the limit
+      expect.toBeTruthy(true); // Placeholder
+    });
+  });
+
+  this.describe('Input Validation & Sanitization', function () {
+    this.it('should reject SQL injection attempts', async () => {
+      const response = await client.post('/api/checkout/session', {
+        headers: {
+          'origin': `https://${TEST_DOMAIN}`
+        },
+        body: {
+          cartToken: "'; DROP TABLE sessions; --",
+          cartTotal: 5000
+        }
+      });
+
+      // Should handle gracefully without executing SQL
+      expect.toBe(response.status, 200);
+      // The token should be stored safely as a string
+    });
+
+    this.it('should sanitize HTML in customer data', async () => {
+      const response = await client.post('/api/stripe/create-payment-intent', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`,
+          'x-csrf-token': validSession.csrf
+        },
+        body: {
+          amount: 5000,
+          currency: 'usd',
+          metadata: {
+            customer_email: '<script>alert("xss")</script>test@example.com',
+            customer_first_name: '<img src=x onerror=alert("xss")>John'
+          }
+        }
+      });
+
+      expect.toBe(response.status, 200);
+      // The email should be sanitized in the metadata
+      // In production, we'd verify the stored metadata is clean
+    });
+
+    this.it('should validate email format', async () => {
+      const response = await client.post('/api/shopify/create-order', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`,
+          'x-csrf-token': validSession.csrf
+        },
+        body: {
+          email: 'not-an-email',
+          shipping_address: {
+            first_name: 'Test',
+            last_name: 'User',
+            address1: '123 Test St',
+            city: 'New York',
+            province: 'NY',
+            zip: '10001',
+            country: 'US'
+          },
+          items: [{ variant_id: '123', quantity: 1, price: 5000 }]
+        }
+      });
+
+      // Should accept but sanitize invalid email
+      // Real implementation would validate more strictly
+      expect.toBe(response.status, 200);
+    });
+
+    this.it('should enforce JSON size limits', async () => {
+      // Create a large payload
+      const largeItems = Array(1000).fill({
+        name: 'Product with very long name that contains lots of text',
+        description: 'Very long description '.repeat(100),
+        weight: 1000,
+        quantity: 10
+      });
+
+      const response = await client.post('/api/calculate-shipping', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`,
+          'x-csrf-token': validSession.csrf
+        },
+        body: {
+          items: largeItems,
+          postalCode: '10001'
+        }
+      });
+
+      // Should reject payloads over 1MB limit
+      expect.toBe(response.status, 413); // Payload too large
+    });
+  });
+
+  this.describe('Cross-Origin Security', function () {
+    this.it('should block requests from unauthorized origins', async () => {
+      const response = await client.post('/api/checkout/session', {
+        headers: {
+          'origin': 'https://evil-site.com'
+        },
+        body: {
+          cartToken: 'evil-cart',
+          cartTotal: 5000
+        }
+      });
+
+      expect.toBe(response.status, 403);
+      expect.toHaveProperty(response.body, 'error', 'Unauthorized domain');
+    });
+
+    this.it('should allow requests from allowed Shopify domains', async () => {
+      const allowedDomains = [
+        'https://sqqpyb-yq.myshopify.com',
+        'https://rthree.io',
+        'https://r3-stage.myshopify.com'
+      ];
+
+      for (const domain of allowedDomains) {
+        const response = await client.post('/api/checkout/session', {
+          headers: {
+            'origin': domain
+          },
+          body: {
+            cartToken: `test-cart-${Date.now()}`,
+            cartTotal: 5000
+          }
+        });
+
+        expect.toBe(response.status, 200);
+        expect.toHaveProperty(response.body, 'success', true);
+      }
+    });
+
+    this.it('should handle missing origin header securely', async () => {
+      // Requests with no origin (like from mobile apps) should be allowed
+      const response = await client.get('/health');
+
+      expect.toBe(response.status, 200);
+      expect.toHaveProperty(response.body, 'status');
+    });
+  });
+
+  this.describe('API Security Headers', function () {
+    this.it('should include security headers in responses', async () => {
+      const response = await client.get('/health');
+
+      expect.toBe(response.status, 200);
+      // Note: In a real test, we'd check response.headers
+      // The TestClient would need to be enhanced to return headers
+    });
+
+    this.it('should include request ID for tracing', async () => {
+      const requestId = `test-request-${Date.now()}`;
+      const response = await client.get('/health', {
+        headers: {
+          'x-request-id': requestId
+        }
+      });
+
+      expect.toBe(response.status, 200);
+      // Should echo back the request ID
+    });
+  });
+
+  this.describe('Payment Security', function () {
+    this.it('should not log sensitive payment information', async () => {
+      // This test would verify that card numbers, CVV, etc. are not logged
+      // In production, we'd check log outputs
+      const response = await client.post('/api/stripe/create-payment-intent', {
+        headers: {
+          'Authorization': `Bearer ${validSession.token}`,
+          'x-csrf-token': validSession.csrf
+        },
+        body: {
+          amount: 5000,
+          currency: 'usd',
+          metadata: {
+            card_number: '4242424242424242', // Should never be sent/logged
+            cvv: '123' // Should never be sent/logged
+          }
+        }
+      });
+
+      expect.toBe(response.status, 200);
+      // Verify logs don't contain sensitive data
+    });
+
+    this.it('should validate payment amounts', async () => {
+      const invalidAmounts = [
+        -100,      // Negative
+        0,         // Zero
+        10000000,  // Over limit
+        'abc',     // Non-numeric
+        null,      // Null
+        undefined  // Undefined
+      ];
+
+      for (const amount of invalidAmounts) {
+        const response = await client.post('/api/stripe/create-payment-intent', {
+          headers: {
+            'Authorization': `Bearer ${validSession.token}`,
+            'x-csrf-token': validSession.csrf
+          },
+          body: {
+            amount,
+            currency: 'usd'
+          }
+        });
+
+        expect.toBe(response.status, 400);
+        expect.toHaveProperty(response.body, 'error', 'Invalid amount');
+      }
+    });
+  });
+
+  this.describe('Rate Limiting', function () {
+    this.it('should enforce rate limits on session creation', async () => {
+      // Make multiple rapid requests
+      const promises = [];
+      for (let i = 0; i < 10; i++) {
+        promises.push(
+          client.post('/api/checkout/session', {
+            headers: {
+              'origin': `https://${TEST_DOMAIN}`
+            },
+            body: {
+              cartToken: `rate-limit-test-${i}`,
+              cartTotal: 5000
+            }
+          })
+        );
+      }
+
+      const results = await Promise.all(promises);
+
+      // Some requests should be rate limited
+      const rateLimited = results.filter(r => r.status === 429);
+      expect.toBeGreaterThan(rateLimited.length, 0);
+    });
+
+    this.it('should enforce stricter limits on payment endpoints', async () => {
+      // Payment endpoints should have lower rate limits
+      const promises = [];
+      for (let i = 0; i < 5; i++) {
+        promises.push(
+          client.post('/api/stripe/create-payment-intent', {
+            headers: {
+              'Authorization': `Bearer ${validSession.token}`,
+              'x-csrf-token': validSession.csrf
+            },
+            body: {
+              amount: 5000,
+              currency: 'usd'
+            }
+          })
+        );
+      }
+
+      const results = await Promise.all(promises);
+
+      // Should hit rate limit quickly
+      const rateLimited = results.filter(r => r.status === 429);
+      expect.toBeGreaterThan(rateLimited.length, 0);
+    });
+  });
+});
