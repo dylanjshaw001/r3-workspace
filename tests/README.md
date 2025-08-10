@@ -69,7 +69,7 @@ git clone https://github.com/dylanjshaw001/r3-workspace.git
 
 ```bash
 # Copy templates
-cd r3-tests
+cd r3-workspace/tests
 cp .env.example .env
 
 cd ../r3-backend
@@ -114,7 +114,7 @@ cd r3-backend
 npm run dev
 
 # Run test suite
-cd ../r3-tests
+cd ../r3-workspace/tests
 npm test -- --testNamePattern="Health Check"
 ```
 
@@ -156,7 +156,7 @@ shopify theme dev --store sqqpyb-yq
 
 3. **Run Tests in Watch Mode**
 ```bash
-cd r3-tests
+cd r3-workspace/tests
 npm run test:watch
 ```
 
@@ -164,7 +164,7 @@ npm run test:watch
 
 ```bash
 # 1. Create test file
-touch r3-tests/r3-frontend/my-feature.test.js
+touch r3-workspace/tests/frontend/r3-frontend/my-feature.test.js
 
 # 2. Write failing test
 npm test -- my-feature.test.js
