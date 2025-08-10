@@ -11,19 +11,19 @@
  * - When values need to change, update them here
  */
 
-// Environment names
+// Environment names (match branch names for consistency)
 export const ENVIRONMENTS = {
-  DEVELOPMENT: 'development',
-  STAGING: 'staging',
-  PRODUCTION: 'production'
+  DEVELOPMENT: 'dev',
+  STAGING: 'stage',
+  PRODUCTION: 'prod'
 };
 
 // Git branch names (standardized across all repos)
+// Note: 'prod' branch is the main/production branch
 export const BRANCHES = {
   DEVELOPMENT: 'dev',
   STAGING: 'stage',
-  PRODUCTION: 'prod',
-  MAIN: 'main'
+  PRODUCTION: 'prod'
 };
 
 // Shopify store domains
