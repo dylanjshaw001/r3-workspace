@@ -44,7 +44,17 @@ R3 is a modern e-commerce platform built on Shopify's infrastructure with custom
 
 ### Active Repositories
 
-#### 1. **r3-frontend** (Shopify Theme)
+#### 1. **r3-workspace** (Development Hub)
+- **Location**: `/Users/dylanjshaw/r3/r3-workspace`
+- **Repository**: https://github.com/dylanjshaw001/r3-workspace
+- **Purpose**: Central hub for documentation, tests, and team collaboration
+- **Key Components**:
+  - `/docs`: All platform documentation (Technical Architecture, Business Overview, Claude Guide, Secrets Management)
+  - `/tests`: Comprehensive test suite for all platform components
+  - `/.github/workflows`: CI/CD pipelines for automated testing
+  - **Created**: August 10, 2025 (migrated from r3-tests)
+
+#### 2. **r3-frontend** (Shopify Theme)
 - **Location**: `/Users/dylanjshaw/r3/r3-frontend`
 - **Purpose**: Shopify Liquid theme with custom checkout
 - **Key Components**:
@@ -375,6 +385,57 @@ if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
 
 ## Testing Infrastructure
 
+### Test Suite Organization
+
+All tests are centralized in the `r3-workspace/tests` directory:
+
+```
+r3-workspace/tests/
+├── frontend/             # Frontend tests
+│   └── r3-frontend/     # Theme tests
+│       ├── unit/        # Component tests
+│       ├── integration/ # Feature tests
+│       └── e2e/        # End-to-end tests
+├── backend/             # Backend tests
+│   └── r3-backend/     # API tests
+│       ├── unit/       # Function tests
+│       ├── integration/# API endpoint tests
+│       └── e2e/        # Flow tests
+├── integration/         # Cross-repo tests
+├── shared/             # Test utilities
+│   ├── fixtures/       # Test data
+│   ├── helpers/        # Helper functions
+│   └── mocks/         # Mock services
+└── config/             # Jest configuration
+```
+
+### Running Tests
+
+```bash
+# From any repository (r3-frontend or r3-backend)
+npm test              # Runs tests for that repo via r3-workspace
+
+# From r3-workspace/tests directory
+npm test              # Run all tests
+npm run test:frontend # Frontend only
+npm run test:backend  # Backend only
+npm run test:coverage # With coverage report
+npm run test:watch    # Auto-run on file changes
+```
+
+### Test Categories
+
+| Category | Command | Purpose |
+|----------|---------|---------|
+| Unit | `npm run test:unit` | Individual function/component tests |
+| Integration | `npm run test:integration` | Feature and API tests |
+| E2E | `npm run test:e2e` | Full user journey tests |
+| ACH | `npm run test:ach` | ACH payment flow tests |
+| Session | `npm run test:session` | Session management tests |
+| Security | `npm run test:security` | Security validation tests |
+| Checkout | `npm run test:checkout` | Checkout flow tests |
+| Webhooks | `npm run test:webhooks` | Webhook handling tests |
+
 ### Test-Driven Development (TDD) Process
 
 #### Core TDD Workflow
@@ -395,7 +456,7 @@ The R3 platform follows strict test-driven development principles:
 ```bash
 # 1. Write test first
 cd r3-workspace/tests
-vim frontend/new-feature.test.js
+vim frontend/r3-frontend/new-feature.test.js
 
 # 2. Verify test fails
 npm test -- new-feature.test.js  # RED
@@ -445,86 +506,48 @@ describe('Cart Discount Logic', () => {
 6. **Document** with `feat!:` or `fix!:` in commit message
 
 ### Test Statistics
-- **Total Tests**: 63
-- **Passing**: 48
-- **Coverage**: ~75% (target: 80%+)
+- **Total Tests**: 203
+- **Passing**: 185
+- **Coverage**: ~82% (target: 80%+)
 - **Test Runner**: Jest with MSW for API mocking
 - **Module Aliases**: @fixtures, @helpers, @mocks, @config
 - **Environment**: Uses `config/test.env` for test-specific variables
 - **Custom Matchers**: toBeValidSession, toBeValidPaymentIntent
 
-### Centralized Test Organization
-```
-r3-workspace/tests/
-├── r3-frontend/           # Frontend tests
-│   ├── unit/             # Component and function tests
-│   ├── integration/      # Feature integration tests
-│   ├── e2e/             # End-to-end user flows
-│   ├── cart-drawer.test.js
-│   ├── checkout-flow.test.js
-│   ├── ach-hybrid-mode.test.js
-│   ├── ach-financial-connections.test.js
-│   ├── ach-manual-entry.test.js
-│   └── manual-test-checklist.md
-├── r3-backend/           # Backend API tests
-│   ├── integration/
-│   │   ├── session/     # Session management tests
-│   │   ├── payment/     # Payment processing tests
-│   │   ├── webhooks/    # Webhook handling tests
-│   │   └── security/    # Security validation tests
-│   └── e2e/             # Complete API workflows
-├── integration/          # Cross-repository tests
-│   ├── full-checkout/   # Complete checkout flows
-│   ├── ach-hybrid-checkout-flow.test.js
-│   └── order-consistency.test.js
-├── shared/              # Shared test resources
-│   ├── fixtures/        # Test data and fixtures
-│   ├── helpers/         # Test utilities
-│   ├── mocks/          # MSW handlers and mock data
-│   └── config/         # Jest configuration
-└── config/
-    └── test.env        # Test environment variables
+### CI/CD Integration
+
+#### GitHub Actions Workflows
+Located in `r3-workspace/.github/workflows/`:
+
+- **test.yml** - Runs full test suite on push/PR
+- **coverage.yml** - Generates and publishes coverage reports
+- **integration.yml** - Runs cross-repository integration tests
+
+#### Automated Testing Pipeline
+```yaml
+# Triggers
+- Push to main branch
+- Pull requests
+- Daily scheduled runs (3 AM UTC)
+
+# Test Matrix
+- Node versions: 16.x, 18.x, 20.x
+- Environments: development, staging
+
+# Steps
+1. Checkout code
+2. Install dependencies
+3. Run linters
+4. Execute test suite
+5. Generate coverage report
+6. Upload artifacts
 ```
 
-### Test Execution Strategy
-
-#### Test-Driven Development Mode
-```bash
-# Continuous testing during development
-cd r3-workspace/tests
-npm run test:watch          # Auto-runs tests on file changes
-
-# Test specific features while developing
-npm test -- --watch cart-drawer.test.js
-```
-
-#### Standard Test Execution
-```bash
-# From any repository (delegates to r3-tests)
-npm test                    # Run all relevant tests
-npm run test:frontend       # Frontend tests only
-npm run test:backend        # Backend tests only
-npm run test:integration    # Cross-repo integration tests
-
-# Specific test categories
-npm run test:session        # Session management tests
-npm run test:payment        # Payment processing tests
-npm run test:security       # Security validation tests
-npm run test:checkout       # Checkout flow tests
-npm run test:ach           # All ACH payment tests
-npm run test:order-consistency  # Order creation consistency
-
-# From r3-tests directly
-cd r3-workspace/tests
-npm test                    # Run all tests
-npm run test:coverage       # With coverage report
-```
-
-#### Continuous Integration Requirements
-- **Pre-commit**: Run relevant test suite
-- **Pre-push**: Full test suite must pass
-- **Pull Request**: Coverage report required
-- **Merge to main branches**: All tests must pass
+#### Test Requirements for Merge
+- All tests must pass
+- Coverage must not decrease
+- No new security vulnerabilities
+- Linting checks pass
 
 ### Testing Tools & Configuration
 - **Jest**: Unit and integration test framework
