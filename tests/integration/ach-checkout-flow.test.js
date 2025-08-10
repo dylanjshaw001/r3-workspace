@@ -9,10 +9,10 @@ const {
   createTestPaymentIntent,
   createTestWebhookEvent,
   waitFor
-} = require('../shared/helpers/utils/test-helpers');
-const { server } = require('../shared/mocks/server');
+} = require('../../shared/helpers/utils/test-helpers');
+const { server } = require('../../shared/mocks/server');
 const { rest } = require('msw');
-const { getApiUrl, shouldMockPayments } = require('../shared/helpers/environment');
+const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');
 
 const API_URL = shouldMockPayments() ? 'http://localhost:3000' : getApiUrl();
 

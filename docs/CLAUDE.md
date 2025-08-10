@@ -5,24 +5,39 @@
 
 This document provides comprehensive guidance for AI assistants working with the R3 e-commerce platform. It consolidates project structure, development practices, testing strategies, and critical operational knowledge.
 
+## 📝 Documentation Guidelines
+
+### Core Documentation Principles
+
+1. **Update, Don't Duplicate**: Always update existing documentation instead of creating new files, unless explicitly specified by the user.
+2. **Keep Master Documents Current**: When making changes to any repository, update the master documents in r3-workspace/docs to maintain consistency.
+3. **Single Source of Truth**: This CLAUDE.md file in r3-workspace is the authoritative guide. Team members should have r3-workspace open alongside their project repositories.
+4. **Documentation Locations**:
+   - Master docs: `/Users/dylanjshaw/r3/r3-workspace/docs/`
+   - Technical Architecture: `TECHNICAL_ARCHITECTURE.md`
+   - Business Overview: `BUSINESS_OVERVIEW.md`
+   - This guide: `CLAUDE.md`
+   - Secrets Management: `SECRETS_MANAGEMENT.md`
+
 ## Project Structure
 
 ### Repository Layout
 ```
 r3/
+├── r3-workspace/       # Central development hub (THIS IS PRIMARY)
+│   ├── docs/          # All master documentation
+│   ├── tests/         # Comprehensive test suite
+│   └── .github/       # CI/CD workflows
 ├── r3-frontend/        # Shopify Liquid theme with custom checkout
 ├── r3-backend/         # Node.js/Express payment processing API  
-├── r3-access/          # Authentication and access control service
-├── r3-tests/           # Centralized test suite for all components
-├── TECHNICAL_ARCHITECTURE.md  # Complete technical documentation
-├── BUSINESS_OVERVIEW.md       # Business and stakeholder documentation
-└── CLAUDE.md                   # This AI assistant guide
+└── r3-access/          # Authentication and access control service
 ```
 
 ### Active Development Repositories
+- **r3-workspace**: Documentation hub and test suite (https://github.com/dylanjshaw001/r3-workspace)
 - **r3-frontend**: Customer-facing Shopify theme
 - **r3-backend**: Payment processing and order management
-- **r3-tests**: All test implementations (48/63 passing)
+- **r3-access**: Credential storage (not in version control)
 
 ## Critical Development Rules
 
@@ -48,9 +63,14 @@ r3/
 Before marking any task complete:
 - Run `npm run lint` if available
 - Run `npm run typecheck` for TypeScript projects
-- Run relevant tests from r3-tests
+- Run relevant tests from r3-workspace/tests
 - Verify checkout flow works end-to-end
 - Check for console errors
+
+**CRITICAL for Production Deployments:**
+- **100% test pass rate required** before pushing to prod branch
+- Run `cd r3-workspace/tests && npm test` and ensure ALL tests pass
+- No exceptions - fix all failing tests before production deployment
 
 ## Environment Configuration
 
@@ -169,10 +189,10 @@ If session expires:
 ## Testing Strategy
 
 ### Centralized Testing
-All tests live in `r3-tests/`:
+All tests live in `r3-workspace/tests/`:
 ```bash
 # From any repository
-npm test                # Delegates to r3-tests
+npm test                # Delegates to r3-workspace/tests
 npm run test:frontend   # Frontend tests only
 npm run test:backend    # Backend tests only
 
@@ -183,16 +203,28 @@ npm run test:session    # Session management
 ```
 
 ### Test Organization
-- `r3-tests/r3-frontend/` - UI and e2e tests
-- `r3-tests/r3-backend/` - API and webhook tests
-- `r3-tests/integration/` - Cross-repo tests
-- `r3-tests/shared/` - Fixtures, helpers, mocks
+- `r3-workspace/tests/frontend/` - UI and e2e tests
+- `r3-workspace/tests/backend/` - API and webhook tests
+- `r3-workspace/tests/integration/` - Cross-repo tests
+- `r3-workspace/tests/shared/` - Fixtures, helpers, mocks
 
 ### Running Tests
 ```bash
-cd r3-tests
+cd r3-workspace/tests
 npm test                    # All tests
 npm run test:coverage       # With coverage report
+```
+
+### Production Deployment Testing
+```bash
+# REQUIRED before pushing to prod
+cd r3-workspace/tests
+npm test                    # Must show 100% pass rate
+
+# If any tests fail:
+# 1. Fix the failing tests
+# 2. Re-run entire suite
+# 3. Only proceed when all tests pass
 ```
 
 ## Common Issues & Solutions
@@ -247,8 +279,8 @@ npm run test:coverage       # With coverage report
 #### 1. New Feature Development
 ```bash
 # Step 1: Write the test first
-cd r3-tests
-# Create test file: r3-frontend/feature-name.test.js or r3-backend/feature-name.test.js
+cd r3-workspace/tests
+# Create test file: frontend/r3-frontend/feature-name.test.js or backend/r3-backend/feature-name.test.js
 
 # Step 2: Run test to verify it fails (Red Phase)
 npm test -- feature-name.test.js
@@ -259,7 +291,7 @@ cd ../r3-frontend  # or r3-backend
 # Write implementation
 
 # Step 4: Run test to verify it passes (Green Phase)
-cd ../r3-tests && npm test -- feature-name.test.js
+cd ../r3-workspace/tests && npm test -- feature-name.test.js
 # Expected: Test passes
 
 # Step 5: Refactor while keeping tests green
@@ -272,7 +304,7 @@ npm test
 #### 2. Bug Fix Process
 ```bash
 # Step 1: Write a failing test that reproduces the bug
-cd r3-tests
+cd r3-workspace/tests
 # Add test case to existing test file or create new one
 
 # Step 2: Verify test fails with current code
@@ -283,7 +315,7 @@ cd ../r3-frontend  # or r3-backend
 # Implement fix
 
 # Step 4: Verify test now passes
-cd ../r3-tests && npm test -- affected-test.js
+cd ../r3-workspace/tests && npm test -- affected-test.js
 
 # Step 5: Run related test suites
 npm run test:frontend  # or test:backend
@@ -302,7 +334,7 @@ When changing expected behavior:
 
 #### Quick Test Reference
 ```bash
-# From any repository (delegates to r3-tests)
+# From any repository (delegates to r3-workspace/tests)
 npm test                    # Run relevant tests for current repo
 npm run test:watch          # TDD mode - auto-runs on changes
 
@@ -370,15 +402,15 @@ When a user specifies expected behavior, follow this protocol:
 ### Test Organization
 
 ```
-r3-tests/
-├── r3-frontend/
+r3-workspace/tests/
+├── frontend/r3-frontend/
 │   ├── unit/              # Individual function/component tests
 │   │   └── cart-utils.test.js
 │   ├── integration/       # Feature integration tests
 │   │   └── checkout-flow.test.js
 │   └── e2e/              # Full user journey tests
 │       └── complete-purchase.test.js
-├── r3-backend/
+├── backend/r3-backend/
 │   ├── unit/             # Utility function tests
 │   │   └── shipping-calc.test.js
 │   ├── integration/      # API endpoint tests
@@ -449,7 +481,7 @@ When intentionally changing behavior:
 
 ```bash
 # Terminal 1: Run tests in watch mode
-cd r3-tests
+cd r3-workspace/tests
 npm run test:watch
 
 # Terminal 2: Make changes
@@ -457,7 +489,7 @@ cd r3-frontend
 # Edit files - tests auto-run
 
 # Terminal 3: Monitor coverage
-cd r3-tests
+cd r3-workspace/tests
 npm run test:coverage -- --watch
 ```
 
@@ -467,9 +499,9 @@ npm run test:coverage -- --watch
 # 1. Create feature branch
 git checkout -b feature/cart-free-shipping
 
-# 2. Write test first (in r3-tests/)
+# 2. Write test first (in r3-workspace/tests/)
 # 3. Commit the failing test
-git add r3-tests/r3-frontend/cart-free-shipping.test.js
+git add r3-workspace/tests/frontend/r3-frontend/cart-free-shipping.test.js
 git commit -m "test: add test for free shipping over $100"
 
 # 4. Implement feature (in r3-frontend/)
@@ -478,10 +510,13 @@ git add r3-frontend/assets/shipping.js
 git commit -m "feat: add free shipping for orders over $100"
 
 # 6. Verify all tests pass
-cd r3-tests && npm test
+cd r3-workspace/tests && npm test
 
-# 7. Push branch
-git push origin feature/cart-free-shipping
+# 7. For production deployment:
+cd r3-workspace/tests && npm test  # MUST be 100% pass rate
+git checkout prod
+git merge stage
+git push origin prod  # Only if all tests pass
 ```
 
 ## Development Best Practices
@@ -517,10 +552,13 @@ shopify theme push --theme 153047662834
 ```
 
 ### Documentation
-- Update this file when adding major features
-- Keep TECHNICAL_ARCHITECTURE.md current
-- Document breaking changes
-- Include examples in comments
+- **Update existing docs** - Don't create new documentation files unless explicitly requested
+- Update this CLAUDE.md file when adding major features
+- Keep TECHNICAL_ARCHITECTURE.md current with system changes
+- Keep BUSINESS_OVERVIEW.md updated with business logic changes
+- Document breaking changes in commit messages
+- Include examples in code comments
+- **Master documents in r3-workspace/docs/** are the single source of truth
 
 ## Security Checklist
 
@@ -726,10 +764,128 @@ ngrok http 3000
 
 ## Contact & Support
 
-- **Documentation**: This file and TECHNICAL_ARCHITECTURE.md
-- **Test Results**: r3-tests/coverage/
+- **Documentation**: r3-workspace/docs/ (all master documents)
+- **Test Results**: r3-workspace/tests/coverage/
+- **Repository**: https://github.com/dylanjshaw001/r3-workspace
 - **Deployment Status**: https://vercel.com/r3
 - **Theme Preview**: Shopify admin → Online Store → Themes
+
+---
+
+## r3-frontend Theme-Specific Guidelines
+
+### ⚠️ CRITICAL: Theme Sync Requirements
+
+**r3-frontend uses ONE-WAY sync from GitHub to Shopify via GitHub Actions.**
+
+Any changes made directly in Shopify's theme editor MUST be synced back to Git:
+```bash
+# Pull theme changes from Shopify
+shopify theme pull --theme=[THEME_ID]
+# Commit and push to Git
+git add -A && git commit -m "Sync theme changes from Shopify" && git push
+```
+
+### Theme Structure
+- `/assets` - CSS, JS, images, SVG icons
+  - `critical.css` - Essential CSS loaded first
+  - `theme.css/js` - Main theme styles and scripts
+  - `checkout.css/js` - Custom checkout functionality
+  - `checkout-payments.js` - Payment integrations
+- `/blocks` - Reusable UI components (group.liquid, text.liquid)
+- `/sections` - Full-width page components
+  - `custom-checkout.liquid` - Multi-step checkout with payment options
+- `/snippets` - Reusable code fragments
+- `/templates` - Page templates (JSON format)
+- `/layout` - Page layout wrappers
+- `/locales` - Internationalization files
+
+### Key Development Rules
+
+**Liquid Syntax**
+- Use `{%- -%}` and `{{- -}}` for whitespace control
+- Valid tags: `if`, `unless`, `elsif`, `else`, `case`, `when`, `for`, `tablerow`, `capture`, `assign`, `increment`, `decrement`, `include`, `section`, `form`, `paginate`, `comment`, `raw`, `liquid`, `echo`, `render`, `javascript`, `stylesheet`
+- Always use `| default:` filter when outputting settings
+
+**CSS Guidelines**
+- Maximum specificity: 0-1-0 (one class)
+- Use CSS variables from `css-variables.liquid`
+- BEM naming: `.block__element--modifier`
+- Scope CSS to sections: `.section-{{ section.id }}`
+- No element selectors without classes
+
+**JavaScript Guidelines**
+- Use `defer` attribute on scripts
+- Prefer custom elements/web components
+- Module pattern for organization
+- No direct DOM manipulation without proper scoping
+
+### File Architecture
+
+**Active Files:**
+- `assets/checkout.js` - Main checkout logic
+- `assets/checkout-payments.js` - Payment processing extension
+- `sections/custom-checkout.liquid` - Checkout UI template
+
+**Legacy/Unused Files:**
+- `assets/checkout-payments-secure.js` - Old implementation (DO NOT USE)
+- `assets/checkout-premium.js` - UI enhancements (commented out)
+- `assets/checkout-session-integration.js` - Migration guide (reference only)
+
+### Critical Integration Points
+
+1. **Session Token Flow**
+   ```javascript
+   Frontend: localStorage → cart.attributes.checkout_session
+   Backend: req.headers.authorization → Bearer {token}
+   Redis: session:{token} → {cartToken, domain, expiresAt}
+   ```
+
+2. **Payment Metadata**
+   All payment intents MUST include:
+   - `store_domain` - For multi-store support
+   - `items` - JSON stringified cart items
+   - `shipping_address` - JSON stringified address
+   - `customer_email/first_name/last_name`
+   - `rep` - Sales rep tracking (if present)
+
+3. **Environment Variables Required**
+   - `KV_REST_API_URL` - Redis connection
+   - `KV_REST_API_TOKEN` - Redis auth
+   - `STRIPE_SECRET_KEY` - Payment processing
+   - `STRIPE_WEBHOOK_SECRET` - Webhook verification
+   - `SHOPIFY_ADMIN_ACCESS_TOKEN` - Order creation
+
+### Common Commands
+
+```bash
+# Start development server
+shopify theme dev
+
+# Run theme linting
+shopify theme check
+
+# Initialize new theme (if needed)
+shopify theme init
+```
+
+### Critical Fixes (DO NOT REMOVE)
+
+#### 1. Navbar Padding Fix
+The navbar requires specific padding `padding: 16px 10px` that must be preserved. This is implemented in:
+- `/assets/critical-fixes.css` - With !important to override any other styles
+- This padding provides the correct vertical and horizontal spacing
+
+#### 2. Theme Toggle Transform Fix
+The theme toggle button has a critical fix to prevent vertical shifting on click/tap. This fix is implemented in:
+1. `/sections/header.liquid` - Main implementation with comments
+2. `/assets/critical-fixes.css` - Backup implementation with extensive documentation
+3. Both files contain `transform: none !important` for all states on mobile devices
+
+**Never remove these fixes** as they ensure proper UI behavior.
+
+#### 3. Product Page Background
+The product page (`.product-page`) should NOT have a background color set. It should inherit the page background color. Do not add `background: #0a0a0a` or any other background color to this class.
 
 ---
 

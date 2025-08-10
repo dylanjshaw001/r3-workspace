@@ -1,7 +1,7 @@
 // Order Creation Consistency Tests
 // Ensures exactly 1 Stripe order and 1 Shopify order per payment across all environments
 const fetch = require('node-fetch');
-const { server } = require('../shared/mocks/server');
+const { server } = require('../../shared/mocks/server');
 const { rest } = require('msw');
 const { 
   createTestCart, 
@@ -9,8 +9,8 @@ const {
   generateTestSessionToken,
   generateTestCSRFToken,
   createTestWebhookEvent
-} = require('../shared/helpers/utils/test-helpers');
-const { getApiUrl, shouldMockPayments } = require('../shared/helpers/environment');
+} = require('../../shared/helpers/utils/test-helpers');
+const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');
 
 const API_URL = shouldMockPayments() ? 'http://localhost:3000' : getApiUrl();
 

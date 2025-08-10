@@ -4,15 +4,15 @@
  */
 
 const fetch = require('node-fetch');
-const { server } = require('../shared/mocks/server');
+const { server } = require('../../shared/mocks/server');
 const { rest } = require('msw');
 const { 
   createTestCart, 
   createTestCustomer,
   generateTestSessionToken,
   generateTestCSRFToken
-} = require('../shared/helpers/utils/test-helpers');
-const { getApiUrl, shouldMockPayments } = require('../shared/helpers/environment');
+} = require('../../shared/helpers/utils/test-helpers');
+const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');
 
 // Make fetch available globally for jsdom
 global.fetch = fetch;

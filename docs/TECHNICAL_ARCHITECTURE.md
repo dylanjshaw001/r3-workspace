@@ -549,6 +549,12 @@ Located in `r3-workspace/.github/workflows/`:
 - No new security vulnerabilities
 - Linting checks pass
 
+#### Production Deployment Requirements
+- **100% test pass rate required** before pushing to prod branch
+- Run complete test suite: `cd r3-workspace/tests && npm test`
+- Zero tolerance for failing tests in production deployments
+- Fix all failing tests before proceeding with production release
+
 ### Testing Tools & Configuration
 - **Jest**: Unit and integration test framework
 - **MSW (Mock Service Worker)**: API mocking for consistent test data

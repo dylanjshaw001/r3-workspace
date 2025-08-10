@@ -173,7 +173,7 @@ describe('Environment Configuration Validation', () => {
   });
   
   describe('Environment Helper Functions', () => {
-    const envHelper = require('../shared/helpers/environment');
+    const envHelper = require('../../shared/helpers/environment');
     
     it('should correctly detect environment from URLs', () => {
       expect(envHelper.detectEnvironmentFromUrl('http://localhost:3000')).toBe('development');

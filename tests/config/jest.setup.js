@@ -1,7 +1,7 @@
 // Jest setup file - runs before each test suite
 
 // Load environment-specific configuration
-const { getEnvConfigPath, getTestTimeout, shouldMockPayments } = require('../shared/helpers/environment');
+const { getEnvConfigPath, getTestTimeout, shouldMockPayments } = require('../../shared/helpers/environment');
 require('dotenv').config({ path: getEnvConfigPath() });
 
 // Set environment-specific timeout
@@ -13,7 +13,7 @@ global.testUtils = require('@helpers/utils/test-helpers');
 global.fixtures = require('@fixtures');
 
 // Global environment helpers
-global.environment = require('../shared/helpers/environment');
+global.environment = require('../../shared/helpers/environment');
 
 // Mock console methods to reduce noise
 const originalConsoleError = console.error;
@@ -34,7 +34,7 @@ const shouldMock = shouldMockPayments();
 global.fetch = require('node-fetch');
 
 // Setup authentication helpers
-const authSetup = require('../shared/helpers/auth-setup');
+const authSetup = require('../../shared/helpers/auth-setup');
 global.authSetup = authSetup;
 
 // Setup MSW for API mocking (only in development environment)

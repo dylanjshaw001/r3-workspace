@@ -7,7 +7,7 @@ global.TextDecoder = TextDecoder;
 
 const { rest } = require('msw');
 const { setupServer } = require('msw/node');
-const { getApiUrl, shouldMockPayments } = require('../shared/helpers/environment');
+const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');
 
 // Mock server for API calls
 const server = setupServer();
