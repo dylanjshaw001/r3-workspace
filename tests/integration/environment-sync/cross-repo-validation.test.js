@@ -1,7 +1,7 @@
 // Cross-repository environment synchronization tests
 // Ensures all repos are using consistent environment settings
 
-const fixtures = require('../../shared/fixtures');
+const fixtures = require('../../../shared/fixtures');
 
 describe('Cross-Repository Environment Validation', () => {
   describe('API URL Consistency', () => {

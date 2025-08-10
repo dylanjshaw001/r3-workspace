@@ -1,8 +1,8 @@
 // Full end-to-end checkout flow integration tests
 // Tests the complete journey from frontend to backend to Shopify
 
-const { createTestCart, createTestCustomer, waitFor } = require('../../shared/helpers/test-helpers');
-const fixtures = require('../../shared/fixtures');
+const { createTestCart, createTestCustomer, waitFor } = require('../../../shared/helpers/test-helpers');
+const fixtures = require('../../../shared/fixtures');
 
 describe('End-to-End Checkout Integration', () => {
   // These tests validate the complete flow across all systems

@@ -1,6 +1,6 @@
 // ACH Webhook Processing Tests
-const { createTestWebhookEvent } = require('../../shared/helpers/utils/test-helpers');
-const { achTestUtils } = require('../../shared/mocks/ach-handlers');
+const { createTestWebhookEvent } = require('../../../shared/helpers/utils/test-helpers');
+const { achTestUtils } = require('../../../shared/mocks/ach-handlers');
 const crypto = require('crypto');
 
 // Mock Stripe webhook signature generation

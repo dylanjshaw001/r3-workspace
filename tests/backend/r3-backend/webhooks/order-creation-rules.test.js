@@ -1,10 +1,10 @@
 // Order Creation Rules Test
 // Tests the webhook handler's order creation logic across environments
 const fetch = require('node-fetch');
-const { server } = require('../../shared/mocks/server');
+const { server } = require('../../../shared/mocks/server');
 const { rest } = require('msw');
-const { createTestWebhookEvent } = require('../../shared/helpers/utils/test-helpers');
-const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');
+const { createTestWebhookEvent } = require('../../../shared/helpers/utils/test-helpers');
+const { getApiUrl, shouldMockPayments } = require('../../../shared/helpers/environment');
 
 const API_URL = shouldMockPayments() ? 'http://localhost:3000' : getApiUrl();
 
