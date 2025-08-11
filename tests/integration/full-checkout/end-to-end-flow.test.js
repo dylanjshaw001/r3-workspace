@@ -1,8 +1,10 @@
 // Full end-to-end checkout flow integration tests
 // Tests the complete journey from frontend to backend to Shopify
 
-const { createTestCart, createTestCustomer, waitFor } = require('../../../shared/helpers/test-helpers');
-const fixtures = require('../../../shared/fixtures');
+const { createTestCart, createTestCustomer, waitFor } = require('../../shared/helpers/test-helpers');
+const fixtures = require('../../shared/fixtures');
+const envHelper = require('../../shared/helpers/environment');
+const { DOMAINS } = require('../../config/shared-constants');
 
 describe('End-to-End Checkout Integration', () => {
   // These tests validate the complete flow across all systems
@@ -18,11 +20,11 @@ describe('End-to-End Checkout Integration', () => {
       // Step 1: Frontend initiates checkout session (simulated)
       console.log('🎯 Step 1: Creating checkout session...');
       
-      const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.FRONTEND_URL
+          'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
         },
         body: JSON.stringify({
           cartToken: testData.cart.token,
@@ -37,7 +39,7 @@ describe('End-to-End Checkout Integration', () => {
       // Step 2: Frontend calculates shipping
       console.log('🚚 Step 2: Calculating shipping...');
       
-      const shippingResponse = await fetch(`${process.env.BACKEND_API_URL}/api/calculate-shipping`, {
+      const shippingResponse = await fetch(`${envHelper.getApiUrl()}/api/calculate-shipping`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,7 +64,7 @@ describe('End-to-End Checkout Integration', () => {
       
       const totalAmount = testData.cart.total_price + shipping.shipping.price;
       
-      const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,7 +84,7 @@ describe('End-to-End Checkout Integration', () => {
             shipping_price: (shipping.shipping.price / 100).toFixed(2),
             store_domain: 'test-store.myshopify.com',
             rep: testData.rep,
-            environment: process.env.NODE_ENV || 'test'
+            environment: envHelper.getTestEnvironment()
           }
         })
       });
@@ -115,7 +117,7 @@ describe('End-to-End Checkout Integration', () => {
               shipping_price: (shipping.shipping.price / 100).toFixed(2),
               store_domain: 'test-store.myshopify.com',
               rep: testData.rep,
-              environment: process.env.NODE_ENV || 'test'
+              environment: envHelper.getTestEnvironment()
             }
           }
         }
@@ -124,7 +126,7 @@ describe('End-to-End Checkout Integration', () => {
       // Step 5: Backend processes webhook and creates order
       console.log('📦 Step 5: Processing webhook and creating order...');
       
-      const webhookResponse = await fetch(`${process.env.BACKEND_API_URL}/webhook/stripe`, {
+      const webhookResponse = await fetch(`${envHelper.getApiUrl()}/webhook/stripe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,11 +173,11 @@ describe('End-to-End Checkout Integration', () => {
       };
 
       // Step 2: Create session with rep-enabled cart
-      const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.FRONTEND_URL
+          'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
         },
         body: JSON.stringify({
           cartToken: cartWithRep.token,
@@ -186,7 +188,7 @@ describe('End-to-End Checkout Integration', () => {
       const session = await sessionResponse.json();
 
       // Step 3: Create payment with rep in metadata
-      const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,11 +230,11 @@ describe('End-to-End Checkout Integration', () => {
         console.log(`🌍 Testing ${env} environment...`);
         
         // Test environment-specific behavior
-        const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+        const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Origin': process.env.FRONTEND_URL
+            'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
           },
           body: JSON.stringify({
             cartToken: `${env}-cart-token`,
@@ -242,7 +244,7 @@ describe('End-to-End Checkout Integration', () => {
 
         const session = await sessionResponse.json();
 
-        const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+        const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -309,11 +311,11 @@ describe('End-to-End Checkout Integration', () => {
       console.log('🔄 Testing session recovery integration...');
 
       // Step 1: Create initial session
-      const initialResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const initialResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.FRONTEND_URL
+          'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
         },
         body: JSON.stringify({
           cartToken: 'recovery-test-cart',
@@ -325,7 +327,7 @@ describe('End-to-End Checkout Integration', () => {
       console.log('✅ Initial session created');
 
       // Step 2: Simulate session expiry (use invalid token)
-      const expiredResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const expiredResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -342,11 +344,11 @@ describe('End-to-End Checkout Integration', () => {
       console.log('✅ Expired session correctly rejected');
 
       // Step 3: Frontend detects error and creates new session
-      const recoveryResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const recoveryResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.FRONTEND_URL
+          'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
         },
         body: JSON.stringify({
           cartToken: 'recovery-test-cart', // Same cart
@@ -358,7 +360,7 @@ describe('End-to-End Checkout Integration', () => {
       console.log('✅ Session recovered');
 
       // Step 4: Continue with recovered session
-      const continueResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const continueResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -388,11 +390,11 @@ describe('End-to-End Checkout Integration', () => {
       
       // Measure time for complete flow
       const sessionStart = Date.now();
-      const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Origin': process.env.FRONTEND_URL
+          'Origin': `https://${DOMAINS.SHOPIFY_STORE}`
         },
         body: JSON.stringify({
           cartToken: 'performance-test',
@@ -404,7 +406,7 @@ describe('End-to-End Checkout Integration', () => {
       const session = await sessionResponse.json();
 
       const paymentStart = Date.now();
-      const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

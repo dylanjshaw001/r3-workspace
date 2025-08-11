@@ -1,5 +1,5 @@
 // ACH Webhook Environment Filtering Tests
-const { createTestWebhookEvent, createTestPaymentIntent } = require('../../../shared/helpers/utils/test-helpers');
+const { createTestWebhookEvent, createTestPaymentIntent } = require('../../../shared/helpers/test-helpers');
 const { achTestUtils } = require('../../../shared/mocks/ach-handlers');
 
 describe('ACH Webhook Environment Filtering', () => {

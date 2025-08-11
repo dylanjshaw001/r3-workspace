@@ -161,7 +161,10 @@ describe('Security Validation', () => {
     beforeEach(async () => {
       const response = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({
           cartToken: 'test-cart',
           cartTotal: 10000
@@ -358,6 +361,7 @@ describe('Security Validation', () => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Origin': 'https://test-store.myshopify.com',
               'X-Forwarded-For': '192.168.1.100' // Same IP
             },
             body: JSON.stringify({
@@ -385,7 +389,10 @@ describe('Security Validation', () => {
       // Create a valid session first
       const sessionResponse = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({
           cartToken: 'rate-limit-payment-test',
           cartTotal: 10000
@@ -503,7 +510,10 @@ describe('Security Validation', () => {
     it('should mask sensitive data in error responses', async () => {
       const response = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({
           cartToken: 'token-with-sensitive-suffix-4242424242424242',
           cartTotal: 10000,
@@ -526,7 +536,10 @@ describe('Security Validation', () => {
       
       const sessionResponse = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({
           cartToken: 'test-cart-secure',
           cartTotal: 10000
@@ -567,7 +580,10 @@ describe('Security Validation', () => {
       // Create session and payment in test environment
       const sessionResponse = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({
           cartToken: 'env-test-cart',
           cartTotal: 10000

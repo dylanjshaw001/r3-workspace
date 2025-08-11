@@ -25,27 +25,128 @@ This document provides comprehensive guidance for AI assistants working with the
 
 ## Configuration Management
 
+### 🔧 CRITICAL: Configuration Consolidation (Updated Aug 10, 2025)
+
+**SINGLE SOURCE OF TRUTH:** All configuration now flows through **`r3-workspace/config/shared-constants.js`**
+
 ### Configuration Architecture
 
-The R3 project uses a **two-layer configuration system**:
-1. **Config Files** (in git) - All non-secret configuration
-2. **.env Files** (not in git) - Only secrets for local backend development
+1. **Master Configuration:** `r3-workspace/config/shared-constants.js`
+2. **Symlinks:** Frontend and backend configs are symlinked to workspace
+3. **Secrets:** Environment variables only (never in config files)
 
-### Configuration Files (Non-Secret Values)
+### Configuration Structure
 
-**Location and Purpose:**
-- **r3-workspace/config/shared-constants.js** - Master configuration file with all shared constants
-- **r3-backend/config/constants.js** - Backend configuration that imports shared constants
-- **r3-frontend/config/constants.js** - Frontend configuration (duplicates values for browser)
-- **r3-workspace/tests/config/constants.js** - Test configuration that imports shared constants
+```
+r3-workspace/config/
+└── shared-constants.js     # MASTER CONFIG FILE (all non-secret values)
 
-**What Goes in Config Files:**
+r3-frontend/config/
+├── shared-constants.js     # → symlink to ../../r3-workspace/config/shared-constants.js
+└── index.js               # Frontend entry point with browser helpers
+
+r3-backend/config/
+├── shared-constants.js     # → symlink to ../../r3-workspace/config/shared-constants.js
+├── constants-consolidated.js  # Merged backend configuration
+└── index.js               # Backend entry point
+```
+
+### Making Configuration Changes
+
+**⚠️ IMPORTANT: Only update the master file in r3-workspace!**
+
+1. Edit: `r3-workspace/config/shared-constants.js`
+2. Changes automatically propagate via symlinks in development
+3. No need to update multiple files
+4. Commit the change in r3-workspace repo
+
+### Deployment with Symlinks
+
+**🚀 Critical: Symlinks must be resolved before deployment!**
+
+#### ⚠️ MANDATORY DEPLOYMENT RULES FOR CLAUDE
+
+**ALWAYS USE THESE DEPLOYMENT COMMANDS:**
+
+1. **Backend Development (r3-backend):**
+   - **NEVER use:** `git push` alone
+   - **ALWAYS use:** `npm run push:dev` (or push:stage, push:prod)
+   - **Why:** Automatically handles symlink resolution and restoration
+
+2. **Frontend Development (r3-frontend):**
+   - **NEVER push directly to Shopify**
+   - **ALWAYS use:** Git workflow first, then theme deployment scripts
+   - **For staging:** `./scripts/deploy-to-stage.sh`
+   - **For production:** `./scripts/deploy-to-prod.sh`
+
+3. **When to Use Proper Deployment:**
+   - **ALWAYS** when pushing configuration changes
+   - **ALWAYS** when the directory contains symlinked files
+   - **ALWAYS** for production or staging deployments
+   - **OPTIONAL** for simple code changes without config updates
+
+#### How It Works
+
+1. **Development:** Symlinks point to `r3-workspace/config/shared-constants.js`
+2. **Before Deploy:** Run `npm run prepare-deploy` to replace symlinks with actual files
+3. **Production:** Receives real files, not broken symlinks
+
+#### Deployment Commands
+
+**Backend (Vercel):**
+```bash
+# CORRECT - Use these commands:
+npm run push:dev            # Push to dev branch with symlink handling
+npm run push:stage          # Push to stage branch with symlink handling  
+npm run push:prod           # Push to production with symlink handling
+npm run deploy              # Add, commit, and push with symlink handling
+
+# WRONG - Never use these alone:
+git push                    # ❌ Breaks symlinks in production
+git push origin dev         # ❌ Breaks symlinks in production
+```
+
+**Frontend (Shopify):**
+```bash
+# Theme deployment with automatic symlink handling
+npm run theme:push           # Resolves symlinks, pushes theme, restores symlinks
+npm run theme:push:stage     # Push to staging theme
+npm run theme:push:prod      # Push to production theme
+
+# Or use deployment scripts (recommended):
+./scripts/deploy-to-stage.sh  # Complete staging deployment workflow
+./scripts/deploy-to-prod.sh   # Production deployment with safety checks
+
+# Manual restoration if needed
+npm run restore-symlinks     # Restore symlinks after deployment
+```
+
+#### Manual Resolution (if needed)
+
+```bash
+# Backend or Frontend
+npm run prepare-deploy       # Resolve symlinks to real files
+
+# Check what changed
+git status config/
+
+# Commit if deploying manually
+git add -A
+git commit -m "build: resolve symlinks for deployment"
+git push
+```
+
+### What Goes in Config Files
 - URLs and domains (shopify store, backend URLs)
 - Theme IDs (staging: 153047662834, production: 152848597234)
 - Ports and timeouts
 - Feature flags
 - API endpoint paths
 - Public keys (Stripe publishable keys)
+- Environment mappings (dev/stage/prod)
+- ACH configuration
+- Shipping rules
+- Rate limits
 
 ### Environment Files (.env) - Secrets Only
 
@@ -140,14 +241,22 @@ const testEmail = TEST_CONFIG.USER.EMAIL;
 ```
 r3/
 ├── r3-workspace/       # Central development hub (THIS IS PRIMARY)
+│   ├── config/        # SINGLE SOURCE OF TRUTH for all configuration
+│   │   └── shared-constants.js  # Master configuration file
 │   ├── docs/          # ALL master documentation (single source of truth)
 │   ├── tests/         # Comprehensive test suite for all repos
+│   │   ├── run-tests.js   # Unified test runner (replaces duplicates)
+│   │   ├── unit/          # Unit tests (<100ms)
+│   │   ├── integration/   # Integration tests (<5s)
+│   │   └── e2e/          # End-to-end tests (<30s)
 │   └── .github/       # Workspace CI/CD workflows
 ├── r3-frontend/        # Shopify Liquid theme with custom checkout
+│   ├── config/        # Symlinked to r3-workspace/config
 │   ├── assets/        # Theme assets (JS, CSS, images)
 │   ├── scripts/       # ALL frontend utility scripts (.sh, .js)
 │   └── templates/     # Liquid templates
 ├── r3-backend/         # Node.js/Express payment processing API
+│   ├── config/        # Symlinked to r3-workspace/config
 │   ├── api/           # API endpoints
 │   ├── scripts/       # ALL backend utility scripts (.sh, .js)
 │   └── utils/         # Backend utilities
@@ -370,25 +479,87 @@ For full session architecture, see TECHNICAL_ARCHITECTURE.md → Session Archite
 
 ## Testing Strategy
 
-### Centralized Testing
-All tests live in `r3-workspace/tests/`:
-```bash
-# From any repository
-npm test                # Delegates to r3-workspace/tests
-npm run test:frontend   # Frontend tests only
-npm run test:backend    # Backend tests only
+### 🧪 Unified Testing Architecture (Updated Aug 10, 2025)
 
-# Specific categories
-npm run test:ach        # ACH payment tests
-npm run test:checkout   # Checkout flow tests
-npm run test:session    # Session management
-```
+**SINGLE TEST RUNNER:** Use `r3-workspace/tests/run-tests.js` for all testing
 
 ### Test Organization
-- `r3-workspace/tests/frontend/` - UI and e2e tests
-- `r3-workspace/tests/backend/` - API and webhook tests
-- `r3-workspace/tests/integration/` - Cross-repo tests
-- `r3-workspace/tests/shared/` - Fixtures, helpers, mocks
+```
+r3-workspace/tests/
+├── run-tests.js         # Unified test runner (replaces 30+ duplicate scripts)
+├── unit/                # Fast, isolated tests (<100ms each)
+│   ├── frontend/        # Frontend unit tests
+│   └── backend/         # Backend unit tests
+├── integration/         # Component interaction tests (<5s each)
+│   ├── session/         # Session management tests
+│   ├── payment/         # Payment processing tests
+│   └── webhooks/        # Webhook handling tests
+├── e2e/                 # Full system tests (<30s each)
+│   ├── checkout-flow/   # Complete checkout scenarios
+│   └── ach-payment/     # ACH payment flows
+└── shared/
+    ├── config.js        # Single test configuration
+    ├── helpers.js       # All test utilities (no duplicates)
+    └── fixtures.js      # Standardized test data
+```
+
+### Running Tests
+
+**Use the unified test runner:**
+```bash
+# From r3-workspace/tests/
+node run-tests.js [options]
+
+# Options:
+--scope frontend|backend|all    # Test scope
+--type unit|integration|e2e     # Test type
+--watch                          # Watch mode
+--coverage                       # Coverage report
+--env dev|stage|prod            # Environment
+
+# Examples:
+node run-tests.js --scope frontend --type unit --watch
+node run-tests.js --type e2e --env stage
+node run-tests.js --coverage
+```
+
+**Simplified package.json scripts:**
+```bash
+# From r3-frontend or r3-backend
+npm test              # Runs relevant tests for that repo
+npm test:watch        # Watch mode for that repo
+```
+
+### Test Categories
+
+1. **Unit Tests** (Target: <100ms each)
+   - Individual functions/components
+   - No external dependencies
+   - Run on every save in watch mode
+
+2. **Integration Tests** (Target: <5s each)
+   - Component interactions
+   - Mocked external services
+   - Run on commit
+
+3. **E2E Tests** (Target: <30s each)
+   - Full user flows
+   - Real test environment
+   - Run on PR/deploy
+
+### No More Duplication
+
+**REMOVED:**
+- 30+ duplicate test scripts across package.json files
+- Multiple test helper implementations
+- Redundant environment detection logic
+- Scattered test data generators
+
+**CONSOLIDATED INTO:**
+- Single test runner: `run-tests.js`
+- Single config: `shared/config.js`
+- Single helpers: `shared/helpers.js`
+- Single fixtures: `shared/fixtures.js`
 
 ### Running Tests
 ```bash
@@ -410,6 +581,27 @@ npm test                    # Must show 100% pass rate
 ```
 
 ## Common Issues & Solutions
+
+### Configuration & Deployment Issues
+- **Broken symlinks in production**: Run `npm run prepare-deploy` before pushing
+- **Config changes not reflecting**: Check symlinks are properly created
+- **Vercel build fails**: Ensure `vercel-build` script runs `prepare-deploy`
+- **Shopify theme has old config**: Use `npm run theme:push` instead of direct `shopify theme push`
+
+### Symlink Troubleshooting
+```bash
+# Check if file is a symlink
+ls -la config/shared-constants.js
+
+# If it shows -> ../../r3-workspace/config/shared-constants.js, it's a symlink
+# If not, recreate it:
+cd r3-backend/config  # or r3-frontend/config
+rm shared-constants.js
+ln -s ../../r3-workspace/config/shared-constants.js shared-constants.js
+
+# Test symlink is working
+node -e "import('./shared-constants.js').then(m => console.log('Works!', m.ENVIRONMENTS))"
+```
 
 ### Webhook Failures
 - **500 Error**: Check environment variables match branch names

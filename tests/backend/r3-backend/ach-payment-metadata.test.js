@@ -1,5 +1,5 @@
 // ACH Payment Intent Environment Metadata Tests
-const { createTestCart, createTestCustomer } = require('../../shared/helpers/utils/test-helpers');
+const { createTestCart, createTestCustomer } = require('../../shared/helpers/test-helpers');
 
 describe('ACH Payment Intent Environment Metadata', () => {
   describe('Frontend Environment Detection', () => {

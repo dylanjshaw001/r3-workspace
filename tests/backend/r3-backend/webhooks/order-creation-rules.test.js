@@ -3,7 +3,7 @@
 const fetch = require('node-fetch');
 const { server } = require('../../../shared/mocks/server');
 const { rest } = require('msw');
-const { createTestWebhookEvent } = require('../../../shared/helpers/utils/test-helpers');
+const { createTestWebhookEvent } = require('../../../shared/helpers/test-helpers');
 const { getApiUrl, shouldMockPayments } = require('../../../shared/helpers/environment');
 
 const API_URL = shouldMockPayments() ? 'http://localhost:3000' : getApiUrl();
@@ -22,8 +22,9 @@ describe('Webhook Order Creation Rules', () => {
     // Mock Shopify Admin API
     server.use(
       // Draft Orders API (staging/dev)
-      rest.post('https://sqqpyb-yq.myshopify.com/admin/api/*/draft_orders.json', (req, res, ctx) => {
-        const draftOrder = req.body.draft_order;
+      rest.post('https://sqqpyb-yq.myshopify.com/admin/api/*/draft_orders.json', async (req, res, ctx) => {
+        const requestBody = await req.json();
+        const draftOrder = requestBody.draft_order;
         createdOrders.push({
           type: 'draft_order',
           environment: 'staging/dev',
@@ -39,8 +40,9 @@ describe('Webhook Order Creation Rules', () => {
       }),
       
       // Real Orders API (production)
-      rest.post('https://rthree.io/admin/api/*/orders.json', (req, res, ctx) => {
-        const order = req.body.order;
+      rest.post('https://rthree.io/admin/api/*/orders.json', async (req, res, ctx) => {
+        const requestBody = await req.json();
+        const order = requestBody.order;
         createdOrders.push({
           type: 'order',
           environment: 'production',

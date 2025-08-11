@@ -8,7 +8,7 @@ const {
   generateTestCSRFToken,
   createTestPaymentIntent,
   createTestWebhookEvent
-} = require('../../shared/helpers/utils/test-helpers');
+} = require('../../shared/helpers/test-helpers');
 const { server } = require('../../shared/mocks/server');
 const { rest } = require('msw');
 const { getApiUrl, shouldMockPayments } = require('../../shared/helpers/environment');

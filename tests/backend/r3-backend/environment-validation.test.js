@@ -154,11 +154,11 @@ describe('Environment Validation', () => {
     });
 
     test('should detect environment from URLs', () => {
-      // Test URL detection
-      expect(global.environment.detectEnvironmentFromUrl('http://localhost:3000')).toBe('development');
-      expect(global.environment.detectEnvironmentFromUrl('https://r3-backend-git-stage-r3.vercel.app')).toBe('staging');
-      expect(global.environment.detectEnvironmentFromUrl('https://r3-backend.vercel.app')).toBe('production');
-      expect(global.environment.detectEnvironmentFromUrl('https://rthree.io')).toBe('production');
+      // Test URL detection using our standard naming
+      expect(global.environment.detectEnvironmentFromUrl('http://localhost:3000')).toBe('dev');
+      expect(global.environment.detectEnvironmentFromUrl('https://r3-backend-git-stage-r3.vercel.app')).toBe('stage');
+      expect(global.environment.detectEnvironmentFromUrl('https://r3-backend.vercel.app')).toBe('prod');
+      expect(global.environment.detectEnvironmentFromUrl('https://rthree.io')).toBe('prod');
       
       // Test pattern matching for Vercel deployment URLs
       expect(global.environment.detectEnvironmentFromUrl('https://r3-backend-abc123xyz-r3.vercel.app')).toBeTruthy();

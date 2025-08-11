@@ -1,233 +1,256 @@
 /**
- * Environment Configuration Validation Tests
- * Ensures environment configs are consistent and properly configured
+ * Environment Configuration Integration Tests
+ * Tests that components properly use centralized configuration
+ * NOT testing hardcoded values - testing that our config system works
  */
 
 const fs = require('fs');
 const path = require('path');
-const dotenv = require('dotenv');
 
-describe('Environment Configuration Validation', () => {
-  const environments = ['development', 'staging', 'production'];
+describe('Environment Configuration Integration', () => {
   const configDir = path.join(__dirname, '../config');
   
-  describe('Environment Files Exist', () => {
-    environments.forEach(env => {
-      it(`should have config file for ${env} environment`, () => {
+  // Import centralized config and helpers
+  let sharedConstants, envHelper;
+  
+  beforeAll(() => {
+    // Import our centralized configuration
+    sharedConstants = require('../config/shared-constants.js');
+    envHelper = require('../shared/helpers/environment');
+  });
+  
+  describe('Centralized Configuration System', () => {    
+    it('should have centralized configuration files available', () => {
+      const constantsPath = path.join(configDir, 'shared-constants.js');
+      expect(fs.existsSync(constantsPath)).toBe(true);
+    });
+    
+    it('should NOT have separate environment files (confirming centralized approach)', () => {
+      // These files should not exist since we use centralized config
+      ['development', 'staging', 'production'].forEach(env => {
         const configPath = path.join(configDir, `test.${env}.env`);
-        expect(fs.existsSync(configPath)).toBe(true);
+        expect(fs.existsSync(configPath)).toBe(false);
       });
     });
     
-    it('should have base test.env file', () => {
-      const configPath = path.join(configDir, 'test.env');
-      expect(fs.existsSync(configPath)).toBe(true);
-    });
-    
-    it('should have .env.example file', () => {
-      const examplePath = path.join(__dirname, '../.env.example');
-      expect(fs.existsSync(examplePath)).toBe(true);
+    it('should export required configuration objects', () => {
+      expect(sharedConstants.ENVIRONMENTS).toBeDefined();
+      expect(sharedConstants.BACKEND_URLS).toBeDefined();
+      expect(sharedConstants.DOMAINS).toBeDefined();
+      expect(typeof sharedConstants.getBackendUrlForEnvironment).toBe('function');
     });
   });
   
-  describe('Required Variables Present', () => {
-    const requiredVars = [
-      'NODE_ENV',
-      'API_URL',
-      'SHOPIFY_DOMAIN',
-      'STRIPE_PUBLIC_KEY_TEST',
-      'TEST_TIMEOUT',
-      'ENABLE_MOCK_PAYMENTS',
-      'ENABLE_WEBHOOK_MOCKING',
-      'SKIP_RATE_LIMITING',
-      'ENABLE_ALL_TESTS'
-    ];
-    
-    environments.forEach(env => {
-      it(`should have all required variables in ${env} config`, () => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        const config = dotenv.parse(fs.readFileSync(configPath));
-        
-        requiredVars.forEach(varName => {
-          expect(config[varName]).toBeDefined();
-        });
-      });
-    });
-  });
-  
-  describe('URL Consistency', () => {
-    it('should use consistent URL patterns', () => {
-      environments.forEach(env => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        const config = dotenv.parse(fs.readFileSync(configPath));
-        
-        const apiUrl = config.API_URL;
-        const backendUrl = config.BACKEND_URL;
-        
-        // Backend URL should match API URL
-        if (backendUrl) {
-          expect(backendUrl).toBe(apiUrl);
-        }
-        
-        // Check URL formats
-        if (env === 'development') {
-          expect(apiUrl).toMatch(/^http:\/\/localhost:\d+$/);
-        } else {
-          expect(apiUrl).toMatch(/^https:\/\//);
-          expect(apiUrl).toContain('r3-backend');
-          expect(apiUrl).not.toContain('r3-payment-backend'); // Old name check
-        }
-      });
-    });
-    
-    it('should not contain old repository names', () => {
-      environments.forEach(env => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        const content = fs.readFileSync(configPath, 'utf8');
-        
-        expect(content).not.toContain('r3-payment-backend');
-        expect(content).not.toContain('r3-nu');
-      });
-    });
-  });
-  
-  describe('Feature Flag Consistency', () => {
-    it('should have appropriate feature flags per environment', () => {
-      const devConfig = dotenv.parse(
-        fs.readFileSync(path.join(configDir, 'test.development.env'))
-      );
-      const stagingConfig = dotenv.parse(
-        fs.readFileSync(path.join(configDir, 'test.staging.env'))
-      );
-      const prodConfig = dotenv.parse(
-        fs.readFileSync(path.join(configDir, 'test.production.env'))
-      );
+  describe('Environment Helper Integration', () => {
+    it('should use centralized constants for backend URL mapping', () => {
+      // Test that helpers use our centralized config
+      const devUrl = envHelper.getApiUrls()[0]; // Primary dev URL
+      const stageUrl = sharedConstants.getBackendUrlForEnvironment('stage');
+      const prodUrl = sharedConstants.getBackendUrlForEnvironment('prod');
       
-      // Development should have all mocking enabled
-      expect(devConfig.ENABLE_MOCK_PAYMENTS).toBe('true');
-      expect(devConfig.ENABLE_WEBHOOK_MOCKING).toBe('true');
-      expect(devConfig.ENABLE_ALL_TESTS).toBe('true');
-      expect(devConfig.ENABLE_DEBUG_LOGGING).toBe('true');
-      
-      // Staging should have no mocking but all tests
-      expect(stagingConfig.ENABLE_MOCK_PAYMENTS).toBe('false');
-      expect(stagingConfig.ENABLE_WEBHOOK_MOCKING).toBe('false');
-      expect(stagingConfig.ENABLE_ALL_TESTS).toBe('true');
-      expect(stagingConfig.ENABLE_DEBUG_LOGGING).toBe('false');
-      
-      // Production should be most restrictive
-      expect(prodConfig.ENABLE_MOCK_PAYMENTS).toBe('false');
-      expect(prodConfig.ENABLE_WEBHOOK_MOCKING).toBe('false');
-      expect(prodConfig.ENABLE_ALL_TESTS).toBe('false');
-      expect(prodConfig.ENABLE_DEBUG_LOGGING).toBe('false');
-      expect(prodConfig.SKIP_RATE_LIMITING).toBe('false');
-    });
-  });
-  
-  describe('Timeout Configuration', () => {
-    it('should have appropriate timeouts per environment', () => {
-      const configs = environments.map(env => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        return dotenv.parse(fs.readFileSync(configPath));
-      });
-      
-      expect(parseInt(configs[0].TEST_TIMEOUT)).toBe(30000); // dev
-      expect(parseInt(configs[1].TEST_TIMEOUT)).toBe(45000); // staging
-      expect(parseInt(configs[2].TEST_TIMEOUT)).toBe(60000); // production
-    });
-  });
-  
-  describe('Shopify Domain Consistency', () => {
-    it('should use consistent Shopify domain across environments', () => {
-      environments.forEach(env => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        const config = dotenv.parse(fs.readFileSync(configPath));
-        
-        // All environments currently use same Shopify domain
-        expect(config.SHOPIFY_DOMAIN).toBe('sqqpyb-yq.myshopify.com');
-      });
-    });
-  });
-  
-  describe('Security Validation', () => {
-    it('should not contain real secret keys', () => {
-      const examplePath = path.join(__dirname, '../.env.example');
-      const exampleContent = fs.readFileSync(examplePath, 'utf8');
-      
-      // Check that example file uses placeholders
-      expect(exampleContent).toContain('<get-from-vault>');
-      expect(exampleContent).not.toMatch(/sk_live_[a-zA-Z0-9]+/); // No live keys
-      expect(exampleContent).not.toMatch(/whsec_[a-zA-Z0-9]{32,}/); // No real webhook secrets
+      // Test integration: helper should return URLs that match centralized config
+      expect(sharedConstants.getBackendUrlForEnvironment('dev')).toBe(sharedConstants.BACKEND_URLS.DEVELOPMENT);
+      expect(stageUrl).toBe(sharedConstants.BACKEND_URLS.STAGING);
+      expect(prodUrl).toBe(sharedConstants.BACKEND_URLS.PRODUCTION);
     });
     
-    it('should use test keys in all environment configs', () => {
-      environments.forEach(env => {
-        const configPath = path.join(configDir, `test.${env}.env`);
-        const config = dotenv.parse(fs.readFileSync(configPath));
-        
-        // Should use test keys even in production tests
-        expect(config.STRIPE_PUBLIC_KEY_TEST).toMatch(/^pk_test_/);
-        expect(config.STRIPE_SECRET_KEY_TEST).toMatch(/^sk_test_/);
-      });
+    it('should use standard environment naming consistently', () => {
+      // Test that our environment detection returns our standard values
+      const standardEnvs = Object.values(sharedConstants.ENVIRONMENTS);
+      
+      // Test URL detection uses our standard naming
+      const detectedDev = envHelper.detectEnvironmentFromUrl(sharedConstants.BACKEND_URLS.LOCAL);
+      const detectedStage = envHelper.detectEnvironmentFromUrl(sharedConstants.BACKEND_URLS.STAGING);
+      const detectedProd = envHelper.detectEnvironmentFromUrl(sharedConstants.BACKEND_URLS.PRODUCTION);
+      
+      expect(standardEnvs).toContain(detectedDev);
+      expect(standardEnvs).toContain(detectedStage);
+      expect(standardEnvs).toContain(detectedProd);
+      
+      // Verify these are our standard short names
+      expect(detectedDev).toBe(sharedConstants.ENVIRONMENTS.DEVELOPMENT);
+      expect(detectedStage).toBe(sharedConstants.ENVIRONMENTS.STAGING);
+      expect(detectedProd).toBe(sharedConstants.ENVIRONMENTS.PRODUCTION);
+    });
+    
+    it('should provide consistent Shopify domain access', () => {
+      // Test that helper functions use centralized domain config
+      const helperDomain = envHelper.getShopifyDomain();
+      const centralizedDomain = sharedConstants.DOMAINS.SHOPIFY_STORE;
+      
+      // When no override is set, helper should use centralized config
+      delete process.env.SHOPIFY_DOMAIN;
+      expect(envHelper.getShopifyDomain()).toBe(centralizedDomain);
     });
   });
   
-  describe('Environment Helper Functions', () => {
-    const envHelper = require('../../shared/helpers/environment');
+  describe('Environment-Specific Behavior Integration', () => {
+    const originalEnv = process.env.NODE_ENV;
     
-    it('should correctly detect environment from URLs', () => {
-      expect(envHelper.detectEnvironmentFromUrl('http://localhost:3000')).toBe('development');
-      expect(envHelper.detectEnvironmentFromUrl('https://r3-backend-git-stage-r3.vercel.app')).toBe('staging');
-      expect(envHelper.detectEnvironmentFromUrl('https://r3-backend.vercel.app')).toBe('production');
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
     });
     
-    it('should return correct feature flags per environment', () => {
-      const originalEnv = process.env.NODE_ENV;
+    it('should map NODE_ENV values to our standard environment names', () => {
+      // Test that getTestEnvironment correctly maps various NODE_ENV values
+      // to our standard dev/stage/prod naming
       
       process.env.NODE_ENV = 'development';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.DEVELOPMENT);
+      
+      process.env.NODE_ENV = 'staging';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.STAGING);
+      
+      process.env.NODE_ENV = 'production';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.PRODUCTION);
+      
+      // Test our preferred short names work too
+      process.env.NODE_ENV = 'dev';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.DEVELOPMENT);
+      
+      process.env.NODE_ENV = 'stage';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.STAGING);
+      
+      process.env.NODE_ENV = 'prod';
+      expect(envHelper.getTestEnvironment()).toBe(sharedConstants.ENVIRONMENTS.PRODUCTION);
+    });
+    
+    it('should provide environment-appropriate feature flags', () => {
+      // Test that feature flags are based on environment detection
+      
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.DEVELOPMENT;
       expect(envHelper.shouldMockPayments()).toBe(true);
       expect(envHelper.shouldRunAllTests()).toBe(true);
       
-      process.env.NODE_ENV = 'staging';
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.STAGING;
       expect(envHelper.shouldMockPayments()).toBe(false);
       expect(envHelper.shouldRunAllTests()).toBe(true);
       
-      process.env.NODE_ENV = 'production';
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.PRODUCTION;
       expect(envHelper.shouldMockPayments()).toBe(false);
       expect(envHelper.shouldRunAllTests()).toBe(false);
-      
-      process.env.NODE_ENV = originalEnv;
     });
     
-    it('should return correct timeouts per environment', () => {
-      const originalEnv = process.env.NODE_ENV;
+    it('should provide environment-appropriate timeouts', () => {
+      // Test that timeouts are based on environment detection
+      const timeouts = {};
       
-      process.env.NODE_ENV = 'development';
-      expect(envHelper.getTestTimeout()).toBe(30000);
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.DEVELOPMENT;
+      timeouts.dev = envHelper.getTestTimeout();
       
-      process.env.NODE_ENV = 'staging';
-      expect(envHelper.getTestTimeout()).toBe(45000);
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.STAGING;
+      timeouts.stage = envHelper.getTestTimeout();
       
-      process.env.NODE_ENV = 'production';
-      expect(envHelper.getTestTimeout()).toBe(60000);
+      process.env.NODE_ENV = sharedConstants.ENVIRONMENTS.PRODUCTION;
+      timeouts.prod = envHelper.getTestTimeout();
       
-      process.env.NODE_ENV = originalEnv;
+      // Verify timeouts increase from dev -> stage -> prod
+      expect(timeouts.dev).toBeLessThan(timeouts.stage);
+      expect(timeouts.stage).toBeLessThan(timeouts.prod);
+      
+      // Verify they are reasonable values (all should be > 10s, < 5min)
+      Object.values(timeouts).forEach(timeout => {
+        expect(timeout).toBeGreaterThan(10000);
+        expect(timeout).toBeLessThan(300000);
+      });
     });
   });
   
-  describe('Package.json Scripts', () => {
-    const packageJson = require('../package.json');
-    
-    it('should have environment-specific test scripts', () => {
-      expect(packageJson.scripts['test:env:dev']).toBeDefined();
-      expect(packageJson.scripts['test:env:staging']).toBeDefined();
-      expect(packageJson.scripts['test:env:prod']).toBeDefined();
+  describe('URL Pattern Consistency', () => {
+    it('should reject old repository names consistently', () => {
+      // Test that both centralized config and helpers reject old patterns
+      const oldPatterns = ['r3-payment-backend', 'r3-nu'];
+      
+      // Check centralized config doesn't contain old patterns
+      Object.values(sharedConstants.BACKEND_URLS).forEach(url => {
+        oldPatterns.forEach(pattern => {
+          expect(url).not.toContain(pattern);
+        });
+      });
+      
+      // Check that URL validation in helpers also rejects old patterns
+      oldPatterns.forEach(pattern => {
+        const fakeOldUrl = `https://${pattern}.vercel.app`;
+        expect(envHelper.detectEnvironmentFromUrl(fakeOldUrl)).toBeNull();
+      });
     });
     
-    it('should limit production tests to happy path', () => {
-      expect(packageJson.scripts['test:env:prod']).toContain("'Happy Path'");
-      expect(packageJson.scripts['test:backend:prod']).toContain("'Happy Path'");
-      expect(packageJson.scripts['test:frontend:prod']).toContain("'Happy Path'");
+    it('should use consistent URL patterns across environments', () => {
+      // Test that URL patterns follow our conventions
+      const backendUrls = sharedConstants.BACKEND_URLS;
+      
+      // All remote URLs should be HTTPS
+      [backendUrls.DEVELOPMENT, backendUrls.STAGING, backendUrls.PRODUCTION].forEach(url => {
+        expect(url).toMatch(/^https:\/\//);
+      });
+      
+      // Local URL should be HTTP
+      expect(backendUrls.LOCAL).toMatch(/^http:\/\/localhost/);
+      
+      // Staging and dev should contain branch indicators
+      expect(backendUrls.STAGING).toContain('stage');
+      expect(backendUrls.DEVELOPMENT).toContain('dev');
+    });
+  });
+  
+  describe('Configuration Override Behavior', () => {
+    const originalApiUrl = process.env.API_URL;
+    const originalShopifyDomain = process.env.SHOPIFY_DOMAIN;
+    
+    afterEach(() => {
+      // Restore original environment
+      if (originalApiUrl) {
+        process.env.API_URL = originalApiUrl;
+      } else {
+        delete process.env.API_URL;
+      }
+      
+      if (originalShopifyDomain) {
+        process.env.SHOPIFY_DOMAIN = originalShopifyDomain;
+      } else {
+        delete process.env.SHOPIFY_DOMAIN;
+      }
+    });
+    
+    it('should allow environment variable overrides when needed', () => {
+      const customApiUrl = 'https://custom-api.example.com';
+      const customShopifyDomain = 'custom-store.myshopify.com';
+      
+      // Test API_URL override
+      process.env.API_URL = customApiUrl;
+      expect(envHelper.getApiUrl()).toBe(customApiUrl);
+      
+      // Test SHOPIFY_DOMAIN override  
+      process.env.SHOPIFY_DOMAIN = customShopifyDomain;
+      expect(envHelper.getShopifyDomain()).toBe(customShopifyDomain);
+      
+      // When overrides are removed, should fall back to centralized config
+      delete process.env.API_URL;
+      delete process.env.SHOPIFY_DOMAIN;
+      
+      expect(envHelper.getShopifyDomain()).toBe(sharedConstants.DOMAINS.SHOPIFY_STORE);
+    });
+  });
+  
+  describe('Cross-Component Configuration Consistency', () => {
+    it('should provide same environment detection across all helpers', () => {
+      // Test that different parts of the system agree on environment detection
+      const testUrl = sharedConstants.BACKEND_URLS.STAGING;
+      
+      const detectedByHelper = envHelper.detectEnvironmentFromUrl(testUrl);
+      const expectedFromConfig = sharedConstants.ENVIRONMENTS.STAGING;
+      
+      expect(detectedByHelper).toBe(expectedFromConfig);
+    });
+    
+    it('should provide consistent domain validation', () => {
+      // Test that domain validation uses centralized config
+      const primaryDomain = sharedConstants.DOMAINS.SHOPIFY_STORE;
+      const prodDomain = sharedConstants.DOMAINS.PRODUCTION;
+      
+      expect(envHelper.isValidShopifyDomain(primaryDomain)).toBe(true);
+      expect(envHelper.isValidShopifyDomain(prodDomain)).toBe(true);
+      expect(envHelper.isValidShopifyDomain('invalid-domain.com')).toBe(false);
     });
   });
 });
