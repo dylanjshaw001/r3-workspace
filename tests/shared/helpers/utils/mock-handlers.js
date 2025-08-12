@@ -301,12 +301,51 @@ const handlers = [
       );
     }
     
+    // Check for ONEbox products to calculate shipping appropriately
+    let hasONEboxProducts = false;
+    let totalONEboxQuantity = 0;
+    
+    items.forEach(item => {
+      // Check properties field for _onebox flag (used in tests)
+      const hasOneboxProperty = item.properties && 
+        (item.properties._onebox === 'true' || 
+         item.properties._onebox === true);
+      
+      // Check title for ONEbox
+      const itemTitle = (item.title || '').toLowerCase();
+      const isONEbox = hasOneboxProperty || 
+        itemTitle.includes('onebox') ||
+        itemTitle.includes('naloxone') ||
+        itemTitle.includes('narcan');
+      
+      if (isONEbox) {
+        hasONEboxProducts = true;
+        totalONEboxQuantity += Number(item.quantity) || 1;
+      }
+    });
+    
+    // Calculate shipping price based on product type
+    let shippingPrice = 1000; // Default $10.00
+    if (hasONEboxProducts) {
+      // ONEbox shipping: $25 per case of 10, or $5 per unit
+      const caseSize = 10;
+      const casePrice = 2500; // $25 in cents
+      const unitPrice = 500;  // $5 in cents
+      
+      const cases = Math.floor(totalONEboxQuantity / caseSize);
+      const remainingUnits = totalONEboxQuantity % caseSize;
+      shippingPrice = (cases * casePrice) + (remainingUnits * unitPrice);
+    }
+    
     return res(
       ctx.status(200),
       ctx.json({
         shipping: {
-          price: 1000, // $10.00
-          method: 'Ground Shipping'
+          price: shippingPrice,
+          method: 'Ground Shipping',
+          description: hasONEboxProducts ? 
+            `ONEbox shipping (${totalONEboxQuantity} units)` : 
+            'Standard shipping'
         }
       })
     );
