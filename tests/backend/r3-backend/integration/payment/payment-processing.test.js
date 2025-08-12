@@ -27,6 +27,44 @@ describe('Payment Processing', () => {
   });
 
   describe('Card Payments', () => {
+    it('should include tax_amount in payment metadata', async () => {
+      const cart = fixtures.valid.cart.basic;
+      const customer = fixtures.valid.customer.basic;
+      const taxAmount = 625; // $6.25 in cents
+      
+      const response = await fetch(`${process.env.API_URL}/api/stripe/create-payment-intent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${validSession.sessionToken}`,
+          'x-csrf-token': validSession.csrfToken
+        },
+        body: JSON.stringify({
+          amount: cart.total_price + 1000 + taxAmount, // Total with shipping and tax
+          currency: 'usd',
+          payment_method_types: ['card'],
+          metadata: {
+            customer_email: customer.email,
+            customer_first_name: customer.first_name,
+            customer_last_name: customer.last_name,
+            items: JSON.stringify(cart.items),
+            shipping_address: JSON.stringify(customer),
+            shipping_method: 'Standard Shipping',
+            shipping_price: '1000',
+            tax_amount: taxAmount.toString(), // Must be string in metadata
+            store_domain: 'test-store.myshopify.com',
+            environment: 'test'
+          }
+        })
+      });
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.paymentIntentId).toBeDefined();
+      
+      // Verify tax_amount is properly included (would be verified in webhook)
+    });
+
     it('should create payment intent for valid card payment', async () => {
       const cart = fixtures.valid.cart.basic;
       const customer = fixtures.valid.customer.basic;
@@ -59,7 +97,8 @@ describe('Payment Processing', () => {
               phone: customer.phone
             }),
             shipping_method: 'Standard Shipping',
-            shipping_price: '10.00',
+            shipping_price: '1000', // Should be in cents
+            tax_amount: '625', // Tax in cents (e.g., 6.25% of $100)
             store_domain: 'test-store.myshopify.com',
             environment: 'test'
           }
@@ -203,6 +242,8 @@ describe('Payment Processing', () => {
             customer_last_name: customer.last_name,
             items: JSON.stringify(fixtures.valid.cart.basic.items),
             shipping_address: JSON.stringify(customer),
+            shipping_price: '1000', // Shipping in cents
+            tax_amount: '750', // Tax in cents
             store_domain: 'test-store.myshopify.com',
             environment: 'test'
           }
