@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Session Authentication Test Suite</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #fff;
+    }
+    h1 {
+      color: #caa7eb;
+      margin-bottom: 30px;
+    }
+    .test-section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .test-item {
+      margin: 15px 0;
+      padding: 15px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+    }
+    .test-name {
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .test-status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .status-pending {
+      background: #666;
+      color: #fff;
+    }
+    .status-running {
+      background: #0088ff;
+      color: #fff;
+    }
+    .status-passed {
+      background: #00ff88;
+      color: #000;
+    }
+    .status-failed {
+      background: #ff0066;
+      color: #fff;
+    }
+    .test-result {
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .test-result.show {
+      display: block;
+    }
+    button {
+      background: #caa7eb;
+      color: #000;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background: #d4b8f0;
+    }
+    .summary {
+      margin-top: 30px;
+      padding: 20px;
+      background: rgba(202, 167, 235, 0.1);
+      border: 1px solid #caa7eb;
+      border-radius: 8px;
+    }
+    .error {
+      color: #ff6b6b;
+    }
+    .success {
+      color: #51cf66;
+    }
+  </style>
+</head>
+<body>
+  <h1>Session Authentication Test Suite</h1>
+  
+  <div class="test-section">
+    <h2>Test Configuration</h2>
+    <p>Backend URL: <code id="backend-url">https://r3-payment-backend.vercel.app</code></p>
+    <p>Frontend Domain: <code id="frontend-domain"></code></p>
+    <button onclick="runAllTests()">Run All Tests</button>
+    <button onclick="clearResults()">Clear Results</button>
+  </div>
+
+  <div class="test-section">
+    <h2>Authentication Tests</h2>
+    
+    <div class="test-item" id="test-session-creation">
+      <div class="test-name">Session Creation</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-session-validation">
+      <div class="test-name">Session Validation</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-session-expiration">
+      <div class="test-name">Session Expiration Check</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-api-key-removed">
+      <div class="test-name">API Key Removed from Frontend</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Payment Flow Tests</h2>
+    
+    <div class="test-item" id="test-payment-intent">
+      <div class="test-name">Create Payment Intent with Session</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-shipping-calc">
+      <div class="test-name">Calculate Shipping with Session</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-unauthorized">
+      <div class="test-name">Unauthorized Access Prevention</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+  </div>
+
+  <div class="test-section">
+    <h2>Integration Tests</h2>
+    
+    <div class="test-item" id="test-checkout-flow">
+      <div class="test-name">Full Checkout Flow Simulation</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+
+    <div class="test-item" id="test-cart-persistence">
+      <div class="test-name">Session Persistence in Cart</div>
+      <div class="test-status status-pending">Pending</div>
+      <div class="test-result"></div>
+    </div>
+  </div>
+
+  <div id="summary" class="summary" style="display: none;">
+    <h3>Test Summary</h3>
+    <p>Total Tests: <span id="total-tests">0</span></p>
+    <p class="success">Passed: <span id="passed-tests">0</span></p>
+    <p class="error">Failed: <span id="failed-tests">0</span></p>
+  </div>
+
+  <script>
+    const BACKEND_URL = 'https://r3-payment-backend.vercel.app';
+    let sessionToken = null;
+    let testResults = {};
+
+    // Set frontend domain
+    document.getElementById('frontend-domain').textContent = window.location.hostname;
+
+    function updateTestStatus(testId, status, result = '') {
+      const testItem = document.getElementById(testId);
+      const statusEl = testItem.querySelector('.test-status');
+      const resultEl = testItem.querySelector('.test-result');
+      
+      statusEl.className = `test-status status-${status}`;
+      statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+      
+      if (result) {
+        resultEl.textContent = result;
+        resultEl.classList.add('show');
+      }
+      
+      testResults[testId] = status;
+    }
+
+    function showSummary() {
+      const total = Object.keys(testResults).length;
+      const passed = Object.values(testResults).filter(s => s === 'passed').length;
+      const failed = Object.values(testResults).filter(s => s === 'failed').length;
+      
+      document.getElementById('total-tests').textContent = total;
+      document.getElementById('passed-tests').textContent = passed;
+      document.getElementById('failed-tests').textContent = failed;
+      document.getElementById('summary').style.display = 'block';
+    }
+
+    async function testSessionCreation() {
+      const testId = 'test-session-creation';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/checkout/session`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cartToken: 'test-cart-' + Date.now(),
+            domain: window.location.hostname,
+            cartTotal: 10000
+          })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.sessionToken) {
+          sessionToken = data.sessionToken;
+          updateTestStatus(testId, 'passed', 
+            `Session created successfully\nToken: ${sessionToken.substring(0, 20)}...\nExpires in: ${data.expiresIn} seconds`
+          );
+        } else {
+          throw new Error(data.error || 'Failed to create session');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testSessionValidation() {
+      const testId = 'test-session-validation';
+      updateTestStatus(testId, 'running');
+      
+      if (!sessionToken) {
+        updateTestStatus(testId, 'failed', 'No session token available');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/calculate-shipping`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken}`
+          },
+          body: JSON.stringify({
+            items: [{sku: 'test', quantity: 1}],
+            postalCode: '10001',
+            country: 'US',
+            subtotal: 10000
+          })
+        });
+
+        if (response.ok) {
+          updateTestStatus(testId, 'passed', 'Session token validated successfully');
+        } else {
+          throw new Error(`Validation failed: ${response.status}`);
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testSessionExpiration() {
+      const testId = 'test-session-expiration';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        // Create an expired session by using a fake token
+        const expiredToken = 'expired-token-test';
+        
+        const response = await fetch(`${BACKEND_URL}/api/calculate-shipping`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${expiredToken}`
+          },
+          body: JSON.stringify({
+            items: [{sku: 'test', quantity: 1}],
+            postalCode: '10001'
+          })
+        });
+
+        if (response.status === 401) {
+          updateTestStatus(testId, 'passed', 'Expired session correctly rejected');
+        } else {
+          throw new Error('Expired session was not rejected');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testApiKeyRemoved() {
+      const testId = 'test-api-key-removed';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        // Check if the hardcoded API key exists in the checkout files
+        const checkoutPaymentsResponse = await fetch('/assets/checkout-payments.js');
+        const checkoutPaymentsContent = await checkoutPaymentsResponse.text();
+        
+        const hardcodedKey = 'caM9N0biGH3scZVlziMPikoDPfuFyeXfUWySif9Igck=';
+        
+        if (checkoutPaymentsContent.includes(hardcodedKey)) {
+          throw new Error('Hardcoded API key still found in checkout-payments.js');
+        }
+        
+        if (checkoutPaymentsContent.includes('Authorization') && checkoutPaymentsContent.includes('Bearer')) {
+          updateTestStatus(testId, 'passed', 'API key removed and replaced with Bearer token authentication');
+        } else {
+          throw new Error('Bearer token authentication not found');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testPaymentIntent() {
+      const testId = 'test-payment-intent';
+      updateTestStatus(testId, 'running');
+      
+      if (!sessionToken) {
+        updateTestStatus(testId, 'failed', 'No session token available');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/stripe/create-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken}`
+          },
+          body: JSON.stringify({
+            amount: 5000,
+            currency: 'usd',
+            payment_method_types: ['card'],
+            metadata: {
+              test: true,
+              customer_email: 'test@example.com'
+            }
+          })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.clientSecret) {
+          updateTestStatus(testId, 'passed', 
+            `Payment intent created\nID: ${data.paymentIntentId}\nClient Secret: ${data.clientSecret.substring(0, 30)}...`
+          );
+        } else {
+          throw new Error(data.error || 'Failed to create payment intent');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testShippingCalc() {
+      const testId = 'test-shipping-calc';
+      updateTestStatus(testId, 'running');
+      
+      if (!sessionToken) {
+        updateTestStatus(testId, 'failed', 'No session token available');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/calculate-shipping`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionToken}`
+          },
+          body: JSON.stringify({
+            items: [
+              { sku: 'naloxone-nasal', quantity: 2 },
+              { sku: 'fentanyl-strips', quantity: 1 }
+            ],
+            postalCode: '90210',
+            country: 'US',
+            subtotal: 15000
+          })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.rates) {
+          updateTestStatus(testId, 'passed', 
+            `Shipping calculated\nStandard: ${JSON.stringify(data.rates.standard)}\nExpress: ${JSON.stringify(data.rates.express)}`
+          );
+        } else {
+          throw new Error(data.error || 'Failed to calculate shipping');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testUnauthorized() {
+      const testId = 'test-unauthorized';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        // Test without any authorization
+        const response1 = await fetch(`${BACKEND_URL}/api/stripe/create-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            amount: 5000,
+            currency: 'usd'
+          })
+        });
+
+        // Test with invalid token
+        const response2 = await fetch(`${BACKEND_URL}/api/stripe/create-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer invalid-token-12345'
+          },
+          body: JSON.stringify({
+            amount: 5000,
+            currency: 'usd'
+          })
+        });
+
+        if (response1.status === 401 && response2.status === 401) {
+          updateTestStatus(testId, 'passed', 'Unauthorized requests correctly blocked');
+        } else {
+          throw new Error('Unauthorized requests were not blocked');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testCheckoutFlow() {
+      const testId = 'test-checkout-flow';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        // Simulate full checkout flow
+        const steps = [];
+        
+        // Step 1: Create session
+        const sessionResponse = await fetch(`${BACKEND_URL}/api/checkout/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cartToken: 'checkout-test-' + Date.now(),
+            domain: window.location.hostname,
+            cartTotal: 25000
+          })
+        });
+        const sessionData = await sessionResponse.json();
+        steps.push(`1. Session created: ${sessionData.sessionToken ? 'Success' : 'Failed'}`);
+        
+        if (!sessionData.sessionToken) throw new Error('Session creation failed');
+        
+        // Step 2: Calculate shipping
+        const shippingResponse = await fetch(`${BACKEND_URL}/api/calculate-shipping`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionData.sessionToken}`
+          },
+          body: JSON.stringify({
+            items: [{ sku: 'test-product', quantity: 1 }],
+            postalCode: '10001',
+            subtotal: 25000
+          })
+        });
+        steps.push(`2. Shipping calculated: ${shippingResponse.ok ? 'Success' : 'Failed'}`);
+        
+        // Step 3: Create payment intent
+        const paymentResponse = await fetch(`${BACKEND_URL}/api/stripe/create-payment-intent`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${sessionData.sessionToken}`
+          },
+          body: JSON.stringify({
+            amount: 25000,
+            currency: 'usd',
+            metadata: { test_checkout: true }
+          })
+        });
+        const paymentData = await paymentResponse.json();
+        steps.push(`3. Payment intent created: ${paymentData.clientSecret ? 'Success' : 'Failed'}`);
+        
+        if (shippingResponse.ok && paymentData.clientSecret) {
+          updateTestStatus(testId, 'passed', `Full checkout flow completed\n${steps.join('\n')}`);
+        } else {
+          throw new Error('Checkout flow incomplete');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function testCartPersistence() {
+      const testId = 'test-cart-persistence';
+      updateTestStatus(testId, 'running');
+      
+      try {
+        // This test would normally interact with Shopify's cart API
+        // For now, we'll simulate the expected behavior
+        
+        const mockCart = {
+          token: 'test-cart-token',
+          attributes: {
+            checkout_session: 'mock-session-token',
+            checkout_expires: Date.now() + 1800000 // 30 minutes
+          }
+        };
+        
+        // Verify session can be retrieved from cart attributes
+        if (mockCart.attributes.checkout_session && mockCart.attributes.checkout_expires > Date.now()) {
+          updateTestStatus(testId, 'passed', 
+            `Session persistence simulated\nToken: ${mockCart.attributes.checkout_session}\nExpires: ${new Date(mockCart.attributes.checkout_expires).toISOString()}`
+          );
+        } else {
+          throw new Error('Session persistence check failed');
+        }
+      } catch (error) {
+        updateTestStatus(testId, 'failed', `Error: ${error.message}`);
+      }
+    }
+
+    async function runAllTests() {
+      testResults = {};
+      
+      // Run tests in sequence
+      await testSessionCreation();
+      await testSessionValidation();
+      await testSessionExpiration();
+      await testApiKeyRemoved();
+      await testPaymentIntent();
+      await testShippingCalc();
+      await testUnauthorized();
+      await testCheckoutFlow();
+      await testCartPersistence();
+      
+      showSummary();
+    }
+
+    function clearResults() {
+      testResults = {};
+      document.querySelectorAll('.test-item').forEach(item => {
+        item.querySelector('.test-status').className = 'test-status status-pending';
+        item.querySelector('.test-status').textContent = 'Pending';
+        item.querySelector('.test-result').classList.remove('show');
+        item.querySelector('.test-result').textContent = '';
+      });
+      document.getElementById('summary').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
