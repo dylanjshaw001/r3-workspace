@@ -4,6 +4,7 @@ const { createTestPaymentIntent, createTestWebhookEvent } = require('@helpers/ut
 const { clearTestSessions } = require('@helpers/utils/mock-handlers');
 const fixtures = require('@fixtures');
 const crypto = require('crypto');
+const envHelper = require('../../../../shared/helpers/environment');
 
 describe('Manual Order Creation Fallback', () => {
   beforeEach(() => {
@@ -52,7 +53,7 @@ describe('Manual Order Creation Fallback', () => {
       const webhookEvent = createTestWebhookEvent('payment_intent.succeeded', paymentIntent);
       
       // First attempt - webhook fails
-      const webhookResponse = await fetch(`${process.env.API_URL}/webhook/stripe`, {
+      const webhookResponse = await fetch(`${envHelper.getApiUrl()}/webhook/stripe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,7 +66,7 @@ describe('Manual Order Creation Fallback', () => {
 
       // Manual fallback - attempt to create order directly
       // This would be triggered by monitoring webhook failures
-      const manualOrderResponse = await fetch(`${process.env.API_URL}/api/manual-order-recovery`, {
+      const manualOrderResponse = await fetch(`${envHelper.getApiUrl()}/api/manual-order-recovery`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

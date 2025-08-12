@@ -1,54 +1,20 @@
 /**
  * Environment detection and configuration utilities for tests
+ * Uses centralized configuration from shared-constants.js
  */
 
-// All possible API URLs for each environment
-const ENVIRONMENT_API_URLS = {
-  development: [
-    // Local development servers (common ports)
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:9292',  // From domains.js config
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3001', 
-    'http://127.0.0.1:9292',
-    // Vercel dev branch deployments (if testing against deployed dev)
-    'https://r3-backend-git-dev-r3.vercel.app',
-    // Pattern for any Vercel dev deployment
-    /^https:\/\/r3-backend-[a-z0-9]+-r3\.vercel\.app$/,
-    // ngrok or tunnel URLs for webhook testing (pattern)
-    /^https:\/\/[a-z0-9-]+\.ngrok\.io$/,
-    /^https:\/\/[a-z0-9-]+\.loca\.lt$/
-  ],
-  staging: [
-    // Vercel staging branch deployments (from your examples)
-    'https://r3-backend-git-stage-r3.vercel.app',
-    'https://r3-backend-oormkr1d8-r3.vercel.app',
-    // Pattern for any Vercel staging deployment
-    /^https:\/\/r3-backend-[a-z0-9]+-r3\.vercel\.app$/
-  ],
-  production: [
-    // Primary Vercel domain
-    'https://r3-backend.vercel.app',
-    // Vercel prod branch deployments  
-    'https://r3-backend-git-prod-r3.vercel.app',
-    'https://r3-backend-dizzuoiq6-r3.vercel.app',
-    // Future primary domain (when API moves there)
-    'https://api.rthree.io',
-    'https://rthree.io',
-    'https://www.rthree.io',
-    // Alternative business domains
-    'https://rapidriskreduction.com',
-    'https://api.rapidriskreduction.com',
-    // Pattern for any Vercel production deployment
-    /^https:\/\/r3-backend-[a-z0-9]+-r3\.vercel\.app$/
-  ]
-};
+// Import centralized configuration (CommonJS version for tests)
+const { 
+  ENVIRONMENTS, 
+  BACKEND_URLS, 
+  DOMAINS,
+  getBackendUrlForEnvironment,
+  getEnvironmentFromBranch 
+} = require('../../config/shared-constants.js');
 
-// All possible Shopify/Frontend domains for each environment  
-const ENVIRONMENT_SHOPIFY_DOMAINS = {
-  development: [
-    'sqqpyb-yq.myshopify.com',  // Primary store (current)
+// Additional domains for flexibility (using centralized config as base)
+const ADDITIONAL_SHOPIFY_DOMAINS = {
+  dev: [
     'localhost:3000',           // Local frontend dev
     'localhost:9292',           // From domains.js
     '127.0.0.1:3000',
@@ -56,16 +22,11 @@ const ENVIRONMENT_SHOPIFY_DOMAINS = {
     /.*\.ngrok\.io$/,           // ngrok tunnels for mobile testing  
     /.*\.loca\.lt$/             // localtunnel for testing
   ],
-  staging: [
-    'sqqpyb-yq.myshopify.com',  // Primary store (current)
+  stage: [
     'r3-stage.myshopify.com',   // Staging-specific store (if exists)
     'staging.rthree.io'         // Future staging domain
   ],
-  production: [
-    'sqqpyb-yq.myshopify.com',    // Primary store (current)
-    'rthree.io',                  // Future primary domain  
-    'www.rthree.io',              // Future primary with www
-    'rapidriskreduction.com',     // Business domain
+  prod: [
     'shop.rapidriskreduction.com', // Shop subdomain
     'www.rapidriskreduction.com'   // Business domain with www
   ]
@@ -73,7 +34,7 @@ const ENVIRONMENT_SHOPIFY_DOMAINS = {
 
 /**
  * Get the current test environment
- * @returns {string} The environment: 'development', 'staging', or 'production'
+ * @returns {string} The environment: 'dev', 'stage', or 'prod'
  */
 function getTestEnvironment() {
   // Check NODE_ENV first
@@ -83,28 +44,29 @@ function getTestEnvironment() {
   switch (nodeEnv) {
     case 'development':
     case 'dev':
-      return 'development';
+      return 'dev';
     case 'staging':
     case 'stage':
-      return 'staging';
+      return 'stage';
     case 'production':
     case 'prod':
-      return 'production';
+      return 'prod';
     case 'test':
     default:
-      // Default to development for test environment
-      return 'development';
+      // Default to dev for test environment
+      return 'dev';
   }
 }
 
 /**
  * Get the environment configuration file path
  * @param {string} env - The environment name
- * @returns {string} The path to the environment config file
+ * @returns {string} The path to the environment config file (now just returns generic test.env)
  */
 function getEnvConfigPath(env = null) {
-  const environment = env || getTestEnvironment();
-  return `./config/test.${environment}.env`;
+  // All environments now use the same base configuration
+  // Specific settings are determined by environment variables and centralized config
+  return `./config/test.env`;
 }
 
 /**
@@ -113,7 +75,25 @@ function getEnvConfigPath(env = null) {
  */
 function getApiUrls() {
   const env = getTestEnvironment();
-  return ENVIRONMENT_API_URLS[env] || ENVIRONMENT_API_URLS.development;
+  
+  // Get primary URL from centralized config
+  const primaryUrl = getBackendUrlForEnvironment(env);
+  
+  // Include additional URLs for flexibility/fallback
+  const additionalUrls = [];
+  
+  if (env === 'dev') {
+    additionalUrls.push(
+      BACKEND_URLS.LOCAL,
+      'http://localhost:3001',
+      'http://localhost:9292',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:9292'
+    );
+  }
+  
+  return [primaryUrl, ...additionalUrls];
 }
 
 /**
@@ -126,8 +106,9 @@ function getApiUrl() {
     return process.env.API_URL;
   }
   
-  const urls = getApiUrls();
-  return urls[0]; // Return the first (primary) URL
+  // Use centralized configuration
+  const env = getTestEnvironment();
+  return getBackendUrlForEnvironment(env);
 }
 
 /**
@@ -136,7 +117,20 @@ function getApiUrl() {
  */
 function getShopifyDomains() {
   const env = getTestEnvironment();
-  return ENVIRONMENT_SHOPIFY_DOMAINS[env] || ENVIRONMENT_SHOPIFY_DOMAINS.development;
+  
+  // Get primary domains from centralized config
+  const primaryDomains = [
+    DOMAINS.SHOPIFY_STORE, // Primary store for all environments
+    DOMAINS.PRODUCTION,    // Future production domain
+    DOMAINS.PRODUCTION_WWW, // With www
+    DOMAINS.ALTERNATE_1,   // Business domain
+    DOMAINS.ALTERNATE_2    // Shop subdomain
+  ];
+  
+  // Add additional domains for flexibility
+  const additionalDomains = ADDITIONAL_SHOPIFY_DOMAINS[env] || [];
+  
+  return [...primaryDomains, ...additionalDomains];
 }
 
 /**
@@ -149,8 +143,8 @@ function getShopifyDomain() {
     return process.env.SHOPIFY_DOMAIN;
   }
   
-  const domains = getShopifyDomains();
-  return domains[0]; // Return the first (primary) domain
+  // Use centralized configuration - primary store for all environments
+  return DOMAINS.SHOPIFY_STORE;
 }
 
 /**
@@ -191,18 +185,20 @@ function isValidShopifyDomain(domain) {
  * @returns {string|null} The detected environment or null if unknown
  */
 function detectEnvironmentFromUrl(url) {
-  for (const [env, urls] of Object.entries(ENVIRONMENT_API_URLS)) {
-    const isMatch = urls.some(validUrl => {
-      if (validUrl instanceof RegExp) {
-        return validUrl.test(url);
-      }
-      return validUrl === url;
-    });
-    
-    if (isMatch) {
-      return env;
-    }
-  }
+  // Check against centralized backend URLs - return our standard values
+  if (url === BACKEND_URLS.PRODUCTION) return 'prod';
+  if (url === BACKEND_URLS.STAGING) return 'stage';  
+  if (url === BACKEND_URLS.DEVELOPMENT) return 'dev';
+  if (url === BACKEND_URLS.LOCAL) return 'dev';
+  
+  // Check additional patterns
+  if (url.includes('localhost') || url.includes('127.0.0.1')) return 'dev';
+  if (url.includes('git-dev-r3.vercel.app')) return 'dev';
+  if (url.includes('git-stage-r3.vercel.app')) return 'stage';
+  if (url.includes('git-prod-r3.vercel.app')) return 'prod';
+  if (url.includes('r3-backend.vercel.app')) return 'prod';
+  if (url.includes('rthree.io')) return 'prod';
+  
   return null;
 }
 
@@ -212,7 +208,7 @@ function detectEnvironmentFromUrl(url) {
  */
 function shouldRunAllTests() {
   const env = getTestEnvironment();
-  return env !== 'production';
+  return env !== 'prod';
 }
 
 /**
@@ -221,7 +217,7 @@ function shouldRunAllTests() {
  */
 function shouldMockPayments() {
   const env = getTestEnvironment();
-  return env === 'development';
+  return env === 'dev';
 }
 
 /**
@@ -232,11 +228,11 @@ function getTestTimeout() {
   const env = getTestEnvironment();
   
   switch (env) {
-    case 'development':
+    case 'dev':
       return 30000; // 30 seconds
-    case 'staging':
+    case 'stage':
       return 45000; // 45 seconds
-    case 'production':
+    case 'prod':
       return 60000; // 60 seconds
     default:
       return 30000;
@@ -256,6 +252,8 @@ module.exports = {
   shouldRunAllTests,
   shouldMockPayments,
   getTestTimeout,
-  ENVIRONMENT_API_URLS,
-  ENVIRONMENT_SHOPIFY_DOMAINS
+  // Export centralized constants for compatibility
+  BACKEND_URLS,
+  DOMAINS,
+  ADDITIONAL_SHOPIFY_DOMAINS
 };

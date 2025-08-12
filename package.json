@@ -1,0 +1,20 @@
+{
+  "name": "r3-workspace",
+  "version": "1.0.0",
+  "description": "R3 Project Workspace - Central configuration and testing",
+  "private": true,
+  "scripts": {
+    "sync-config": "node scripts/sync-config.js",
+    "verify-symlinks": "node scripts/verify-symlinks.js",
+    "update-stripe-keys": "node scripts/update-stripe-keys.js",
+    "deploy-config": "npm run sync-config && cd ../r3-frontend && git add -A && git commit -m 'chore: sync config from workspace' && git push && cd ../r3-backend && git add -A && git commit -m 'chore: sync config from workspace' && git push",
+    "update-config": "npm run sync-config && npm run deploy-config"
+  },
+  "keywords": [
+    "r3",
+    "configuration",
+    "workspace"
+  ],
+  "author": "R3 Team",
+  "license": "UNLICENSED"
+}

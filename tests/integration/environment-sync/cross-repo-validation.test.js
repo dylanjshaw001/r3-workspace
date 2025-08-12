@@ -1,23 +1,26 @@
 // Cross-repository environment synchronization tests
 // Ensures all repos are using consistent environment settings
 
-const fixtures = require('../../../shared/fixtures');
+const fixtures = require('../../shared/fixtures');
+const envHelper = require('../../shared/helpers/environment');
+const { ENVIRONMENTS, BACKEND_URLS, DOMAINS } = require('../../config/shared-constants');
 
 describe('Cross-Repository Environment Validation', () => {
   describe('API URL Consistency', () => {
     it('should use consistent API URLs across all environments', async () => {
+      // Use centralized configuration instead of hardcoded values
       const environments = {
-        development: {
-          backend: process.env.DEV_BACKEND_URL || 'http://localhost:3000',
-          frontend: process.env.DEV_FRONTEND_URL || 'http://localhost:9292'
+        [ENVIRONMENTS.DEVELOPMENT]: {
+          backend: BACKEND_URLS.DEVELOPMENT,
+          frontend: `https://${DOMAINS.SHOPIFY_STORE}`
         },
-        staging: {
-          backend: process.env.STAGING_BACKEND_URL || 'https://r3-backend-staging.vercel.app',
-          frontend: process.env.STAGING_FRONTEND_URL || 'https://r3-stage.myshopify.com'
+        [ENVIRONMENTS.STAGING]: {
+          backend: BACKEND_URLS.STAGING,
+          frontend: `https://${DOMAINS.SHOPIFY_STORE}`
         },
-        production: {
-          backend: process.env.PROD_BACKEND_URL || 'https://r3-backend.vercel.app',
-          frontend: process.env.PROD_FRONTEND_URL || 'https://rthree.io'
+        [ENVIRONMENTS.PRODUCTION]: {
+          backend: BACKEND_URLS.PRODUCTION,
+          frontend: `https://${DOMAINS.PRODUCTION}`
         }
       };
 
@@ -109,7 +112,7 @@ describe('Cross-Repository Environment Validation', () => {
         console.log(`🔐 Testing Stripe key type for ${env}...`);
         
         // Create a test session to check which Stripe keys are being used
-        const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+        const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -125,7 +128,7 @@ describe('Cross-Repository Environment Validation', () => {
           const session = await sessionResponse.json();
 
           // Create payment intent to check Stripe key type
-          const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+          const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -157,7 +160,7 @@ describe('Cross-Repository Environment Validation', () => {
       const webhookPayload = fixtures.webhooks.paymentSucceeded;
       
       // Test webhook with invalid signature (should fail)
-      const invalidResponse = await fetch(`${process.env.BACKEND_API_URL}/webhook/stripe`, {
+      const invalidResponse = await fetch(`${envHelper.getApiUrl()}/webhook/stripe`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -286,7 +289,7 @@ describe('Cross-Repository Environment Validation', () => {
       console.log('🔄 Testing data flow consistency...');
 
       // Step 1: Create session with test data
-      const sessionResponse = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+      const sessionResponse = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -301,7 +304,7 @@ describe('Cross-Repository Environment Validation', () => {
       const session = await sessionResponse.json();
 
       // Step 2: Create payment with all test data
-      const paymentResponse = await fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+      const paymentResponse = await fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -342,7 +345,7 @@ describe('Cross-Repository Environment Validation', () => {
       const errorScenarios = [
         {
           name: 'Missing authentication',
-          request: () => fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+          request: () => fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount: 10000 })
@@ -352,13 +355,13 @@ describe('Cross-Repository Environment Validation', () => {
         {
           name: 'Invalid CSRF token',
           request: async () => {
-            const session = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+            const session = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cartToken: 'test', cartTotal: 10000 })
             }).then(r => r.json());
 
-            return fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+            return fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -373,13 +376,13 @@ describe('Cross-Repository Environment Validation', () => {
         {
           name: 'Invalid amount',
           request: async () => {
-            const session = await fetch(`${process.env.BACKEND_API_URL}/api/checkout/session`, {
+            const session = await fetch(`${envHelper.getApiUrl()}/api/checkout/session`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ cartToken: 'test', cartTotal: 10000 })
             }).then(r => r.json());
 
-            return fetch(`${process.env.BACKEND_API_URL}/api/stripe/create-payment-intent`, {
+            return fetch(`${envHelper.getApiUrl()}/api/stripe/create-payment-intent`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

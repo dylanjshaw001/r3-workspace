@@ -185,6 +185,71 @@ dev → stage → prod
 └────────────────── Development (auto-deploy)
 ```
 
+### Configuration Deployment Process
+
+#### The Symlink Challenge
+
+**Development:** Configuration files in r3-frontend and r3-backend are symlinks pointing to `r3-workspace/config/shared-constants.js` for single source of truth.
+
+**Production Problem:** Vercel and Shopify cannot access files outside their deployment directory, causing broken symlinks.
+
+**Solution:** Automatic symlink resolution during deployment.
+
+#### Symlink Resolution Architecture
+
+```
+DEVELOPMENT                    DEPLOYMENT                      PRODUCTION
+───────────                    ──────────                      ──────────
+config/                        prepare-deploy.js               config/
+├── shared-constants.js  →    1. Detect symlink          →    ├── shared-constants.js
+    (symlink to workspace)     2. Read target file                 (real file with content)
+                              3. Replace symlink
+                              4. Deploy real file
+```
+
+#### Implementation Details
+
+**Backend Deployment Scripts:**
+```json
+{
+  "scripts": {
+    "prepare-deploy": "node scripts/prepare-deploy.js",
+    "deploy": "npm run prepare-deploy && git add -A && git commit -m 'build: resolve symlinks' && git push",
+    "deploy:stage": "npm run prepare-deploy && git push origin stage",
+    "deploy:prod": "npm run prepare-deploy && git push origin prod",
+    "vercel-build": "npm run prepare-deploy && echo 'Build complete'"
+  }
+}
+```
+
+**Frontend Deployment Scripts:**
+```json
+{
+  "scripts": {
+    "prepare-deploy": "node scripts/prepare-deploy.js",
+    "restore-symlinks": "node scripts/prepare-deploy.js --restore",
+    "theme:push": "npm run prepare-deploy && shopify theme push && npm run restore-symlinks",
+    "theme:push:stage": "npm run prepare-deploy && shopify theme push --theme 153047662834 && npm run restore-symlinks",
+    "theme:push:prod": "npm run prepare-deploy && shopify theme push --theme 152848597234 && npm run restore-symlinks"
+  }
+}
+```
+
+#### Deployment Workflows
+
+**Backend to Vercel:**
+1. Developer runs: `npm run deploy`
+2. Script resolves symlinks to real files
+3. Commits changes automatically
+4. Pushes to GitHub
+5. Vercel builds and deploys with real files
+
+**Frontend to Shopify:**
+1. Developer runs: `npm run theme:push`
+2. Script resolves symlinks to real files
+3. Shopify CLI uploads theme with real content
+4. Script restores symlinks for continued development
+
 ### GitHub Actions Workflows
 
 #### Frontend Deployment (.github/workflows/deploy-theme.yml)
@@ -205,6 +270,7 @@ Jobs:
 - Automatic deployment on git push
 - Preview deployments for all branches
 - Production deployment on `prod` branch
+- `vercel-build` script ensures symlinks are resolved
 
 ### Environment Mapping
 | Branch | Frontend Theme | Backend URL | Stripe Mode |

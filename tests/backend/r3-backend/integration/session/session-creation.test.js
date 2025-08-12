@@ -174,7 +174,7 @@ describe('Session Creation', () => {
 
       expect(response.status).toBe(401);
       const data = await response.json();
-      expect(data.error).toContain('session');
+      expect(data.error.toLowerCase()).toContain('session');
     });
 
     it('should handle concurrent sessions', async () => {
@@ -182,12 +182,18 @@ describe('Session Creation', () => {
       const sessions = await Promise.all([
         fetch(`${process.env.API_URL}/api/checkout/session`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': 'https://test-store.myshopify.com'
+          },
           body: JSON.stringify({ cartToken: 'cart-1', cartTotal: 10000 })
         }),
         fetch(`${process.env.API_URL}/api/checkout/session`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': 'https://test-store.myshopify.com'
+          },
           body: JSON.stringify({ cartToken: 'cart-2', cartTotal: 20000 })
         })
       ]);
@@ -298,12 +304,18 @@ describe('Session Creation', () => {
       const sessions = await Promise.all([
         fetch(`${process.env.API_URL}/api/checkout/session`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': 'https://test-store.myshopify.com'
+          },
           body: JSON.stringify({ cartToken: 'cart-1', cartTotal: 10000 })
         }).then(r => r.json()),
         fetch(`${process.env.API_URL}/api/checkout/session`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Origin': 'https://test-store.myshopify.com'
+          },
           body: JSON.stringify({ cartToken: 'cart-2', cartTotal: 20000 })
         }).then(r => r.json())
       ]);
@@ -315,7 +327,10 @@ describe('Session Creation', () => {
       // Create valid session
       const createResponse = await fetch(`${process.env.API_URL}/api/checkout/session`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Origin': 'https://test-store.myshopify.com'
+        },
         body: JSON.stringify({ cartToken: 'test-cart', cartTotal: 10000 })
       });
       

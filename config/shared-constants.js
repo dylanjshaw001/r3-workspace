@@ -23,7 +23,8 @@ export const ENVIRONMENTS = {
 export const BRANCHES = {
   DEVELOPMENT: 'dev',
   STAGING: 'stage',
-  PRODUCTION: 'prod'
+  PRODUCTION: 'prod',
+  MAIN: 'main' // Legacy support for 'main' branch
 };
 
 // Shopify store domains
@@ -95,7 +96,7 @@ export const SHOPIFY_API = {
 
 // Stripe public keys (safe to expose in frontend)
 export const STRIPE_PUBLIC_KEYS = {
-  TEST: 'pk_test_51QfuVo2MiCAheYVMWMHg8qhGhCLRnLhOrnZupzJxppag93BnJhMFCCwg1xC2X4aH9vzonCpcpf8z3avoYINOvzaI00u9n0Xx7F',
+  TEST: 'pk_test_51QfuVo2MiCAheYVMBOUaLAoiI6ROiGeETTSMo2n6wz27euMLGlinvxg2dZcWaiH1QV8WcIdAjDxnxc3xV2GIL9GC00uJtwkzZL',
   LIVE: 'pk_live_51QfuVo2MiCAheYVMxmfB8eGf3OSMZRPvsH2dcFC579LoJTaSBYDiX78vuagKKjLZh0PN5ZIn4vvyilhbXZosV2tY00vPGMZQk8'
 };
 
