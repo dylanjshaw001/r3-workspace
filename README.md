@@ -21,37 +21,46 @@ npm test
 
 ```
 r3-workspace/
-├── docs/                          # Platform documentation
-│   ├── TECHNICAL_ARCHITECTURE.md  # Complete technical documentation
-│   ├── BUSINESS_OVERVIEW.md       # Business context and requirements
-│   ├── CLAUDE.md                  # AI assistant instructions
-│   └── SECRETS_MANAGEMENT.md      # Security and vault guide
-├── tests/                          # Comprehensive test suite
-│   ├── backend/                    # Backend API tests
-│   ├── frontend/                   # Frontend UI tests
-│   ├── integration/                # Cross-system tests
-│   └── README.md                   # Test documentation
+├── CLAUDE.md                      # AI assistant guide (consolidated)
+├── TECHNICAL_OVERVIEW.md          # Complete technical documentation
+├── BUSINESS_OVERVIEW.md           # Executive business summary
+├── BUSINESS_OVERVIEW_SUPER.md     # ROI analysis & business case
+├── config/                        # Master configuration (single source of truth)
+│   └── shared-constants.js        # All non-secret configuration
+├── docs/                          # Additional documentation
+│   └── audits/                    # Site launch audits & security
+├── tests/                         # Comprehensive test suite
+│   ├── run-tests.js               # Unified test runner
+│   ├── unit/                      # Unit tests (<100ms)
+│   ├── integration/               # Integration tests (<5s)
+│   ├── e2e/                       # End-to-end tests (<30s)
+│   └── shared/                    # Test utilities
+├── legacy/                        # Archived legacy files
+│   ├── backend/                   # Legacy backend code
+│   ├── frontend/                  # Legacy frontend code
+│   └── tests/                     # Legacy test files
 └── .github/
-    └── workflows/                  # CI/CD pipelines
+    └── workflows/                 # CI/CD pipelines
 ```
 
 ## 📚 Documentation
 
 ### Core Documents
 
-- **[Technical Architecture](docs/TECHNICAL_ARCHITECTURE.md)** - System design, technology stack, deployment infrastructure
-- **[Business Overview](docs/BUSINESS_OVERVIEW.md)** - Business model, requirements, stakeholders
-- **[AI Assistant Guide](docs/CLAUDE.md)** - Instructions for AI-powered development
-- **[Secrets Management](docs/SECRETS_MANAGEMENT.md)** - Vault access, security protocols
+- **[AI Assistant Guide](CLAUDE.md)** - Comprehensive guide for AI-powered development
+- **[Technical Overview](TECHNICAL_OVERVIEW.md)** - Complete technical architecture & implementation
+- **[Business Overview](BUSINESS_OVERVIEW.md)** - Executive summary & business context
+- **[ROI Business Case](BUSINESS_OVERVIEW_SUPER.md)** - Strategic investment analysis & competitive advantages
 
 ### Quick Links
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| [Technical Architecture](docs/TECHNICAL_ARCHITECTURE.md) | System design & infrastructure | Engineers |
-| [Business Overview](docs/BUSINESS_OVERVIEW.md) | Business context & requirements | All team members |
+| [AI Assistant Guide](CLAUDE.md) | Complete project context for AI development | AI Assistants & Developers |
+| [Technical Overview](TECHNICAL_OVERVIEW.md) | System architecture & implementation | Engineers & Technical Team |
+| [Business Overview](BUSINESS_OVERVIEW.md) | Business context & operational details | All Team Members |
+| [ROI Business Case](BUSINESS_OVERVIEW_SUPER.md) | Strategic value & investment justification | Executives & Decision Makers |
 | [Testing Guide](tests/README.md) | Test suite documentation | QA & Engineers |
-| [Secrets Guide](docs/SECRETS_MANAGEMENT.md) | Security & credentials | DevOps & Engineers |
 
 ## 🧪 Testing
 
